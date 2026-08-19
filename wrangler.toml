@@ -5,7 +5,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "operum_main"
-database_id = "REPLACE_WITH_D1_ID_AFTER_CREATION"
+database_id = "28200c87-fc11-457e-99d7-3fe1d389456a"
 
 [vars]
 CORS_ORIGIN = "https://operum.pages.dev"
