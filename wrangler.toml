@@ -1,0 +1,14 @@
+name = "operum-worker"
+main = "worker.ts"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "operum_main"
+database_id = "REPLACE_WITH_D1_ID_AFTER_CREATION"
+
+[vars]
+CORS_ORIGIN = "https://operum.pages.dev"
+
+# Secrets — set via wrangler secret put:
+#   npx wrangler secret put OPERUM_JWT_SECRET
