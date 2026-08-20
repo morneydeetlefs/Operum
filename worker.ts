@@ -368,23 +368,19 @@ export default {
       }
 
       // Step 2 — library entries ordered by use_count, filtered by node_type
-      let libRows: { prefix: string; description: string; use_count: number }[] = [];
+      // node_types MUST be in SELECT so the JS filter can read it
+      const allLib = await db.prepare(
+        `SELECT prefix, description, node_types, use_count FROM suffix_library ORDER BY use_count DESC, prefix ASC`
+      ).all<{ prefix: string; description: string; node_types: string; use_count: number }>();
+
+      let libRows = allLib.results;
       if (nodeType) {
-        const all = await db.prepare(
-          `SELECT prefix, description, use_count FROM suffix_library ORDER BY use_count DESC, prefix ASC`
-        ).all<{ prefix: string; description: string; use_count: number }>();
-        // Filter in JS — SQLite JSON functions are limited in D1
-        libRows = all.results.filter(r => {
+        libRows = allLib.results.filter(r => {
           try {
             const types: string[] = JSON.parse(r.node_types || '[]') as string[];
             return types.includes(nodeType);
           } catch { return true; }
         });
-      } else {
-        const all = await db.prepare(
-          `SELECT prefix, description, use_count FROM suffix_library ORDER BY use_count DESC, prefix ASC`
-        ).all<{ prefix: string; description: string; use_count: number }>();
-        libRows = all.results;
       }
 
       // Remove from library list any prefixes already in continuations
