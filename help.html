@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<title>Operum — Help & Training</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;900&family=Syne:wght@400;500;600;700&family=Syne+Mono&family=Raleway:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --md-black:     #0a0906;
+  --md-dark:      #110e09;
+  --md-surface:   #1a1610;
+  --md-panel:     #211c14;
+  --md-border:    #2c2619;
+  --md-border-lt: #3d3526;
+  --md-gold-dk:   #7a5815;
+  --md-gold:      #c9943c;
+  --md-gold-lt:   #e8c87a;
+  --md-gold-glow: rgba(201,148,60,.12);
+  --md-cream:     #f0e6ce;
+  --md-muted:     #7a6d58;
+  --md-success:   #4caf7a;
+  --md-danger:    #c94c4c;
+  --md-warning:   #d4842a;
+  --md-info:      #4c8fc9;
+  --md-radius:    4px;
+  --md-radius-lg: 8px;
+  --font-brand:   'Cinzel', serif;
+  --font-ui:      'Syne', sans-serif;
+  --font-body:    'Raleway', sans-serif;
+  --font-mono:    'Syne Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--md-dark);
+  color: var(--md-cream);
+  font-family: var(--font-body);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+}
+
+/* ── Layout ── */
+.shell { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+/* Sidebar */
+.sidebar {
+  width: 260px; flex-shrink: 0;
+  background: var(--md-black);
+  border-right: 1px solid var(--md-border);
+  position: fixed; top: 0; left: 0; bottom: 0;
+  overflow-y: auto; display: flex; flex-direction: column;
+  transition: transform .3s;
+}
+.sidebar-brand {
+  padding: 24px 20px 16px;
+  border-bottom: 1px solid var(--md-border);
+}
+.sidebar-brand-name {
+  font-family: var(--font-brand);
+  font-size: 1rem; font-weight: 600; letter-spacing: .14em;
+  color: var(--md-gold-lt);
+}
+.sidebar-brand-sub {
+  font-family: var(--font-mono);
+  font-size: .6rem; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--md-gold-dk); margin-top: 3px;
+}
+
+/* Role selector */
+.role-selector {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--md-border);
+}
+.role-label {
+  font-family: var(--font-mono);
+  font-size: .6rem; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--md-muted); margin-bottom: 6px;
+}
+.role-select {
+  width: 100%;
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); color: var(--md-cream);
+  font-family: var(--font-ui); font-size: .8rem; padding: 7px 10px;
+  outline: none; cursor: pointer;
+}
+.role-select:focus { border-color: var(--md-gold-dk); }
+.role-select option { background: var(--md-panel); }
+
+/* Nav */
+.nav-section {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--md-border);
+}
+.nav-section-title {
+  font-family: var(--font-mono);
+  font-size: .58rem; letter-spacing: .25em; text-transform: uppercase;
+  color: var(--md-gold-dk); padding: 8px 20px 4px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 20px; cursor: pointer;
+  color: var(--md-muted); font-size: .82rem;
+  border-left: 2px solid transparent;
+  transition: all .15s;
+}
+.nav-item:hover { color: var(--md-cream); background: var(--md-surface); }
+.nav-item.active {
+  color: var(--md-gold-lt);
+  border-left-color: var(--md-gold);
+  background: rgba(201,148,60,.06);
+}
+.nav-item svg { width: 14px; height: 14px; flex-shrink: 0; }
+.nav-item.locked { opacity: .35; cursor: not-allowed; }
+.nav-item.locked:hover { color: var(--md-muted); background: none; }
+
+/* Main content */
+.main {
+  margin-left: 260px;
+  flex: 1; padding: 0;
+}
+
+/* Topic view */
+.topic { display: none; }
+.topic.active { display: block; }
+
+/* Topic hero */
+.topic-hero {
+  padding: 40px 48px 32px;
+  border-bottom: 1px solid var(--md-border);
+  background: linear-gradient(135deg, var(--md-surface) 0%, var(--md-dark) 100%);
+}
+.topic-eyebrow {
+  font-family: var(--font-mono);
+  font-size: .62rem; letter-spacing: .3em; text-transform: uppercase;
+  color: var(--md-gold-dk); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 10px;
+}
+.topic-eyebrow::after {
+  content: ''; flex: 1; max-width: 40px; height: 1px;
+  background: var(--md-border-lt);
+}
+.topic-title {
+  font-family: var(--font-brand);
+  font-size: 1.6rem; font-weight: 600; letter-spacing: .08em;
+  color: var(--md-gold-lt); margin-bottom: 10px;
+}
+.topic-desc {
+  color: rgba(240,230,206,.7); font-size: .9rem; line-height: 1.7;
+  max-width: 620px;
+}
+.topic-roles {
+  display: flex; gap: 6px; flex-wrap: wrap; margin-top: 14px;
+}
+.role-badge {
+  font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 100px;
+  background: rgba(201,148,60,.12); color: var(--md-gold-dk);
+}
+
+/* Content body */
+.topic-body { padding: 36px 48px; max-width: 800px; }
+
+/* Steps */
+.steps { display: flex; flex-direction: column; gap: 0; margin: 24px 0; }
+.step {
+  display: flex; gap: 20px; padding: 0 0 28px;
+  position: relative;
+}
+.step::before {
+  content: '';
+  position: absolute; left: 17px; top: 36px; bottom: 0;
+  width: 1px; background: var(--md-border);
+}
+.step:last-child::before { display: none; }
+.step-num {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: var(--md-surface); border: 1px solid var(--md-border-lt);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: .75rem; color: var(--md-gold);
+  font-weight: 700;
+}
+.step-body { flex: 1; padding-top: 6px; }
+.step-title {
+  font-weight: 700; font-size: .9rem; color: var(--md-cream);
+  margin-bottom: 6px;
+}
+.step-desc { color: rgba(240,230,206,.7); line-height: 1.7; font-size: .85rem; }
+
+/* Info boxes */
+.info-box {
+  border-radius: var(--md-radius);
+  padding: 14px 16px; margin: 20px 0;
+  font-size: .85rem; line-height: 1.6;
+  display: flex; gap: 12px;
+}
+.info-box svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; }
+.info-tip  { background: rgba(76,175,122,.08); border: 1px solid rgba(76,175,122,.2); color: var(--md-cream); }
+.info-tip svg { color: var(--md-success); }
+.info-warn { background: rgba(212,132,42,.08); border: 1px solid rgba(212,132,42,.2); color: var(--md-cream); }
+.info-warn svg { color: var(--md-warning); }
+.info-note { background: rgba(76,143,201,.08); border: 1px solid rgba(76,143,201,.2); color: var(--md-cream); }
+.info-note svg { color: var(--md-info); }
+
+/* Demo sandbox */
+.sandbox {
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-lg); margin: 24px 0; overflow: hidden;
+}
+.sandbox-header {
+  padding: 12px 16px;
+  background: var(--md-panel); border-bottom: 1px solid var(--md-border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.sandbox-title {
+  font-family: var(--font-mono); font-size: .7rem;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--md-gold-dk);
+}
+.sandbox-reset {
+  font-family: var(--font-mono); font-size: .65rem;
+  letter-spacing: .08em; text-transform: uppercase;
+  background: transparent; border: 1px solid var(--md-border-lt);
+  color: var(--md-muted); border-radius: var(--md-radius);
+  padding: 4px 10px; cursor: pointer; transition: all .2s;
+}
+.sandbox-reset:hover { color: var(--md-gold-lt); border-color: var(--md-gold-dk); }
+.sandbox-body { padding: 16px; }
+
+/* Mock UI elements inside sandbox */
+.mock-tree { display: flex; flex-direction: column; gap: 4px; }
+.mock-node {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  border-left: 3px solid var(--md-border);
+  border-radius: var(--md-radius); cursor: pointer;
+  transition: border-color .2s; font-size: .85rem;
+}
+.mock-node:hover { border-color: var(--md-gold-dk); }
+.mock-node.measurable { border-left-color: var(--md-gold-dk); }
+.mock-node.selected { border-color: var(--md-gold); background: rgba(201,148,60,.06); }
+.mock-node-id { font-family: var(--font-mono); font-size: .68rem; color: var(--md-gold-dk); min-width: 100px; }
+.mock-node-label { flex: 1; font-weight: 600; }
+.mock-node-right { display: flex; gap: 6px; align-items: center; }
+.mock-chevron { color: var(--md-muted); }
+.mock-badge {
+  font-family: var(--font-mono); font-size: .6rem;
+  font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 1px 6px; border-radius: 100px;
+}
+.mb-crit   { background: rgba(201,76,76,.18);  color: var(--md-danger); }
+.mb-high   { background: rgba(212,132,42,.18); color: var(--md-warning); }
+.mb-med    { background: rgba(76,143,201,.18); color: var(--md-info); }
+.mb-low    { background: rgba(76,175,122,.18); color: var(--md-success); }
+.mb-cm     { background: rgba(201,148,60,.18); color: var(--md-gold); }
+.mb-role-a { background: rgba(201,148,60,.18); color: var(--md-gold); }
+.mb-role-s { background: rgba(76,143,201,.18); color: var(--md-info); }
+.mb-role-t { background: rgba(76,175,122,.18); color: var(--md-success); }
+.mb-role-o { background: rgba(122,109,88,.18); color: var(--md-muted); }
+
+.mock-indent { padding-left: 24px; }
+.mock-indent-2 { padding-left: 48px; }
+
+.mock-add-btn {
+  width: 100%; padding: 9px;
+  background: transparent; border: 1px dashed var(--md-border-lt);
+  border-radius: var(--md-radius); color: var(--md-muted);
+  font-size: .8rem; cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px;
+}
+.mock-add-btn:hover { color: var(--md-gold-lt); border-color: var(--md-gold-dk); }
+
+/* Mock form */
+.mock-form { display: flex; flex-direction: column; gap: 10px; }
+.mock-field label {
+  display: block; font-family: var(--font-mono);
+  font-size: .62rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--md-muted); margin-bottom: 4px;
+}
+.mock-input {
+  width: 100%; padding: 8px 10px;
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); color: var(--md-cream);
+  font-family: var(--font-ui); font-size: .85rem;
+  outline: none; transition: border-color .2s;
+}
+.mock-input:focus { border-color: var(--md-gold-dk); }
+.mock-input.active { border-color: var(--md-gold-dk); }
+
+/* Suggest dropdown demo */
+.mock-dropdown {
+  background: var(--md-panel); border: 1px solid var(--md-border-lt);
+  border-top: none; border-radius: 0 0 var(--md-radius) var(--md-radius);
+  overflow: hidden;
+}
+.mock-suggest-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; border-bottom: 1px solid var(--md-border);
+  cursor: pointer; transition: background .12s;
+}
+.mock-suggest-item:last-child { border-bottom: none; }
+.mock-suggest-item:hover { background: var(--md-surface); }
+.mock-suggest-text { font-family: var(--font-mono); font-size: .82rem; }
+.mock-suggest-desc { font-size: .72rem; color: var(--md-muted); margin-top: 1px; }
+.mock-suggest-tag {
+  font-family: var(--font-mono); font-size: .58rem;
+  letter-spacing: .06em; text-transform: uppercase;
+  padding: 1px 5px; border-radius: 3px;
+}
+.tag-pattern { background: rgba(201,148,60,.15); color: var(--md-gold); }
+.tag-library { background: rgba(122,109,88,.12); color: var(--md-muted); }
+
+/* Mock emp row */
+.mock-emp-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px;
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); margin-bottom: 6px;
+}
+.mock-emp-name { font-weight: 600; font-size: .88rem; }
+.mock-emp-sub { font-family: var(--font-mono); font-size: .68rem; color: var(--md-muted); margin-top: 2px; }
+
+/* Mock nav bar */
+.mock-nav {
+  display: flex; background: var(--md-surface);
+  border: 1px solid var(--md-border); border-radius: var(--md-radius);
+  overflow: hidden; margin-bottom: 12px;
+}
+.mock-nav-btn {
+  flex: 1; padding: 10px 6px; text-align: center;
+  font-family: var(--font-mono); font-size: .65rem;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--md-muted); cursor: pointer;
+  border-right: 1px solid var(--md-border); transition: all .2s;
+}
+.mock-nav-btn:last-child { border-right: none; }
+.mock-nav-btn.active { color: var(--md-gold); background: rgba(201,148,60,.06); }
+.mock-nav-btn:hover:not(.active) { color: var(--md-cream); background: var(--md-panel); }
+
+/* Divider */
+.divider {
+  width: 100%; height: 1px; margin: 28px 0;
+  background: linear-gradient(90deg, transparent, var(--md-border-lt) 20%, var(--md-gold-dk) 50%, var(--md-border-lt) 80%, transparent);
+  position: relative; display: flex; align-items: center; justify-content: center;
+}
+.divider::after {
+  content: '✦'; position: absolute;
+  font-size: .65rem; color: var(--md-gold-dk);
+  background: var(--md-dark); padding: 0 12px;
+}
+
+/* Section headings within topic body */
+.body-h2 {
+  font-family: var(--font-brand); font-size: 1rem; font-weight: 600;
+  letter-spacing: .08em; color: var(--md-gold-lt);
+  margin: 32px 0 12px;
+}
+.body-h2:first-child { margin-top: 0; }
+.body-p { color: rgba(240,230,206,.8); line-height: 1.75; margin-bottom: 14px; font-size: .88rem; }
+.body-ul { padding-left: 18px; margin-bottom: 14px; }
+.body-ul li { color: rgba(240,230,206,.8); line-height: 1.75; margin-bottom: 4px; font-size: .88rem; }
+
+/* Role table */
+.role-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: .82rem; }
+.role-table th {
+  text-align: left; padding: 8px 12px;
+  font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--md-muted); border-bottom: 1px solid var(--md-border);
+}
+.role-table td {
+  padding: 9px 12px; border-bottom: 1px solid var(--md-border);
+  color: rgba(240,230,206,.8); vertical-align: top;
+}
+.role-table tr:last-child td { border-bottom: none; }
+.role-table tr:hover td { background: var(--md-surface); }
+.check { color: var(--md-success); font-weight: 700; }
+.cross { color: var(--md-muted); }
+
+/* Coming soon */
+.coming-soon {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--md-border-lt); margin-left: 8px;
+}
+
+/* Mobile sidebar toggle */
+.sidebar-toggle {
+  display: none; position: fixed; bottom: 20px; right: 20px; z-index: 100;
+  width: 48px; height: 48px;
+  background: linear-gradient(135deg, var(--md-gold-dk), var(--md-gold));
+  border: none; border-radius: 50%; cursor: pointer;
+  align-items: center; justify-content: center; color: var(--md-black);
+  box-shadow: 0 4px 20px rgba(0,0,0,.4);
+}
+
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); z-index: 50; }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; }
+  .topic-hero { padding: 28px 20px 20px; }
+  .topic-body { padding: 24px 20px; }
+  .sidebar-toggle { display: flex; }
+}
+
+/* Progress bar at top */
+.progress-bar {
+  position: fixed; top: 0; left: 260px; right: 0; height: 2px; z-index: 20;
+  background: var(--md-border);
+}
+.progress-fill {
+  height: 100%; background: linear-gradient(90deg, var(--md-gold-dk), var(--md-gold));
+  transition: width .3s;
+}
+@media (max-width: 768px) { .progress-bar { left: 0; } }
+
+/* Interactive demo feedback */
+.demo-feedback {
+  font-family: var(--font-mono); font-size: .72rem;
+  color: var(--md-success); margin-top: 8px; min-height: 18px;
+  transition: opacity .3s;
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+
+<div class="shell">
+
+<!-- ── Sidebar ── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="sidebar-brand-name">✦ OPERUM</div>
+    <div class="sidebar-brand-sub">Help &amp; Training Guide</div>
+  </div>
+
+  <div class="role-selector">
+    <div class="role-label">Viewing as</div>
+    <select class="role-select" id="roleSelect" onchange="applyRole()">
+      <option value="admin">Admin (full access)</option>
+      <option value="supervisor">Supervisor</option>
+      <option value="safety_manager">Safety Manager</option>
+      <option value="maintenance_planner">Maintenance Planner</option>
+      <option value="artisan">Artisan</option>
+      <option value="operator">Operator</option>
+      <option value="read_only">Read Only</option>
+      <option value="contractor">Contractor</option>
+    </select>
+  </div>
+
+  <nav id="sideNav">
+    <!-- Rendered by JS based on role -->
+  </nav>
+</aside>
+
+<!-- ── Main ── -->
+<main class="main" id="mainContent">
+
+  <!-- ══ TOPIC: Welcome ══ -->
+  <div class="topic active" id="topic-welcome" data-roles="all">
+    <div class="topic-hero">
+      <div class="topic-eyebrow">Getting Started</div>
+      <div class="topic-title">Welcome to Operum</div>
+      <div class="topic-desc">Operum is a field-first industrial operations platform. It connects your asset register, your people, and your condition monitoring tools into one system — built for the plant floor, not the office.</div>
+      <div class="topic-roles">
+        <span class="role-badge">All roles</span>
+      </div>
+    </div>
+    <div class="topic-body">
+      <div class="body-h2">What Operum does</div>
+      <div class="body-p">Every function in Operum connects back to the asset register — the master list of every piece of equipment on your site. From there, safety inspections, maintenance work orders, and condition monitoring readings all know exactly which machine they belong to.</div>
+
+      <div class="sandbox">
+        <div class="sandbox-header">
+          <div class="sandbox-title">Platform modules</div>
+        </div>
+        <div class="sandbox-body">
+          <div class="mock-nav">
+            <div class="mock-nav-btn active">Register</div>
+            <div class="mock-nav-btn">Safety <span class="coming-soon">Phase 2</span></div>
+            <div class="mock-nav-btn">Maintenance <span class="coming-soon">Phase 3</span></div>
+            <div class="mock-nav-btn">Condition</div>
+          </div>
+          <div class="body-p" style="margin:0;font-size:.82rem;">The bottom navigation shows the modules your role has access to. Tap any module to switch views. Modules marked Phase 2/3 are coming soon.</div>
+        </div>
+      </div>
+
+      <div class="body-h2">How to sign in</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Open the app</div>
+            <div class="step-desc">Go to <strong>operum.pages.dev/app</strong> on any device — desktop, tablet, or phone. The app works in any modern browser without installation.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">Enter your email and password</div>
+            <div class="step-desc">Your site administrator will give you your login credentials. Use the email address registered against your employee record.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Your role loads automatically</div>
+            <div class="step-desc">The app shows only the modules and actions your role permits. You will not see options that are outside your access level.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-tip info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <div>Your session stays active until you sign out. On shared devices, always sign out when you are done.</div>
+      </div>
+
+      <div class="body-h2">Role summary</div>
+      <div class="body-p">Your role determines what you can see and do. Use the <strong>Viewing as</strong> selector at the top of this sidebar to explore what each role can access in this guide.</div>
+
+      <table class="role-table">
+        <thead><tr><th>Role</th><th>Primary purpose</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mock-badge mb-role-a">Admin</span></td><td>Full access — manage users, all modules, configuration</td></tr>
+          <tr><td><span class="mock-badge mb-role-s">Supervisor</span></td><td>View all data for their area, approve work</td></tr>
+          <tr><td><span class="mock-badge mb-role-s">Safety Manager</span></td><td>Full safety module access, risk assessments, PTW approval</td></tr>
+          <tr><td><span class="mock-badge mb-role-s">Maint. Planner</span></td><td>Work orders, maintenance schedules, asset register</td></tr>
+          <tr><td><span class="mock-badge mb-role-t">Artisan</span></td><td>Execute work orders, run inspections, take readings</td></tr>
+          <tr><td><span class="mock-badge mb-role-t">Operator</span></td><td>Raise fault notifications</td></tr>
+          <tr><td><span class="mock-badge mb-role-o">Read Only</span></td><td>View dashboards and reports — no data entry</td></tr>
+          <tr><td><span class="mock-badge mb-role-o">Contractor</span></td><td>Scoped to specific work orders only</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ TOPIC: Employee Register ══ -->
+  <div class="topic" id="topic-employees" data-roles="admin,supervisor,safety_manager,maintenance_planner">
+    <div class="topic-hero">
+      <div class="topic-eyebrow">Register Module</div>
+      <div class="topic-title">Employee Register</div>
+      <div class="topic-desc">The employee register is where all platform users are created and managed. Every person who uses Operum — from artisans to site admins — has an employee record that defines their access.</div>
+      <div class="topic-roles">
+        <span class="role-badge">Admin</span>
+        <span class="role-badge">Supervisor</span>
+        <span class="role-badge">Safety Manager</span>
+        <span class="role-badge">Maint. Planner</span>
+      </div>
+    </div>
+    <div class="topic-body">
+      <div class="body-h2">Viewing employees</div>
+      <div class="body-p">Open the <strong>Register</strong> module and tap the <strong>Employees</strong> tab. All active employees are listed with their role badge. Inactive employees are hidden by default.</div>
+
+      <div class="sandbox">
+        <div class="sandbox-header">
+          <div class="sandbox-title">Employee list — demo</div>
+          <button class="sandbox-reset" onclick="resetEmpDemo()">Reset</button>
+        </div>
+        <div class="sandbox-body" id="empDemoBody">
+          <!-- rendered by JS -->
+        </div>
+      </div>
+
+      <div class="body-h2">Adding an employee</div>
+      <div class="info-warn info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>Only <strong>Admin</strong> users can create, edit, or deactivate employee records.</div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Tap + Add in the Employees tab</div>
+            <div class="step-desc">The Add Employee form slides up from the bottom of the screen.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">Set the Employee ID</div>
+            <div class="step-desc">Choose a short, memorable ID — for example <code style="font-family:var(--font-mono);color:var(--md-gold-dk);">emp_042</code> or <code style="font-family:var(--font-mono);color:var(--md-gold-dk);">jsmith</code>. This ID is permanent and cannot be changed after creation.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Assign a role and areas</div>
+            <div class="step-desc">Select the appropriate role from the dropdown. In the Areas field, enter the area IDs this person is assigned to — for example <code style="font-family:var(--font-mono);color:var(--md-gold-dk);">bay_a, bay_b</code>. Use <code style="font-family:var(--font-mono);color:var(--md-gold-dk);">all</code> for unrestricted access.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title">Tap Save Employee</div>
+            <div class="step-desc">The record is created immediately. The employee can sign in using their email address once a password is set.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="body-h2">Deactivating an employee</div>
+      <div class="body-p">Tap any employee row to open their record, then tap <strong>Edit</strong>. Deactivation is a soft delete — the record and all its history is preserved. The employee can no longer sign in but their historical data remains intact for audit purposes.</div>
+
+      <div class="info-tip info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <div>Never delete an employee record. Deactivate instead. Historical records — readings, inspections, sign-offs — must remain traceable to the person who performed them.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOPIC: Asset Register ══ -->
+  <div class="topic" id="topic-assets" data-roles="admin,supervisor,safety_manager,maintenance_planner,artisan,operator,read_only">
+    <div class="topic-hero">
+      <div class="topic-eyebrow">Register Module</div>
+      <div class="topic-title">Asset Register</div>
+      <div class="topic-desc">The asset register is the spine of Operum. Every machine, component, and measurement point on your site lives here, organised into a tree that mirrors the physical layout of the plant.</div>
+      <div class="topic-roles">
+        <span class="role-badge">All roles</span>
+      </div>
+    </div>
+    <div class="topic-body">
+      <div class="body-h2">How the tree works</div>
+      <div class="body-p">Assets are organised as a hierarchy — a tree. Each node can have child nodes at any depth. The full ID of any node encodes its complete location in the plant.</div>
+
+      <div class="sandbox">
+        <div class="sandbox-header">
+          <div class="sandbox-title">Asset tree — demo</div>
+          <button class="sandbox-reset" onclick="resetAssetDemo()">Reset</button>
+        </div>
+        <div class="sandbox-body">
+          <div class="mock-tree" id="assetDemoTree">
+            <div class="mock-node" onclick="demoNavigate('SITE-01')">
+              <div class="mock-node-id">SITE-01</div>
+              <div class="mock-node-label">Sasol Secunda — Block 3</div>
+              <div class="mock-node-right">
+                <span class="mock-badge mb-low">low</span>
+                <span class="mock-chevron">›</span>
+              </div>
+            </div>
+          </div>
+          <div class="demo-feedback" id="assetDemoFeedback"></div>
+        </div>
+      </div>
+
+      <div class="body-h2">Navigating the tree</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Tap a node row to select it</div>
+            <div class="step-desc">The detail card appears below, showing the node's ID, criticality, hazards, isolation points, and actions. Measurable nodes show a <strong>CM</strong> badge — DiagnosticWand readings can be taken there.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">Tap the › chevron to drill into children</div>
+            <div class="step-desc">The chevron on the right side of any row navigates one level deeper. The breadcrumb at the top tracks where you are.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Use the breadcrumb to go back up</div>
+            <div class="step-desc">Tap any level in the breadcrumb — <strong>All Sites &rsaquo; SITE-01 &rsaquo; 03 CV</strong> — to jump back to that level instantly.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="body-h2">Node types</div>
+      <div class="body-p">Every node has a type that describes what it represents. The type is for display and filtering only — the tree logic works the same regardless of type.</div>
+      <table class="role-table">
+        <thead><tr><th>Type</th><th>Typical use</th><th>Example ID</th></tr></thead>
+        <tbody>
+          <tr><td>Site</td><td>Top-level geographical location</td><td>SITE-01</td></tr>
+          <tr><td>Plant</td><td>A plant or section within a site</td><td>SITE-01 03</td></tr>
+          <tr><td>System</td><td>A system within a plant</td><td>SITE-01 03 CV-180</td></tr>
+          <tr><td>Machine</td><td>A physical machine</td><td>SITE-01 03 CV-180 GB-1</td></tr>
+          <tr><td>Component</td><td>A part of a machine</td><td>SITE-01 03 CV-180 GB-1 NDE</td></tr>
+          <tr><td>Auxiliary</td><td>Supporting equipment (lube, cooling)</td><td>SITE-01 03 CV-180 LUB-1</td></tr>
+          <tr><td>Maintainable</td><td>A replaceable or inspectable item</td><td>SITE-01 03 CV-180 GB-1 BLT-1</td></tr>
+          <tr><td>Consumable</td><td>A consumable item (filters, belts)</td><td>SITE-01 03 CV-180 FLT-1</td></tr>
+        </tbody>
+      </table>
+
+      <div class="divider"></div>
+
+      <div class="body-h2">Adding a node</div>
+      <div class="info-note info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>Admin, Supervisor, Safety Manager, and Maintenance Planner roles can add and edit nodes. Artisans and Operators can view the tree but cannot modify it.</div>
+      </div>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Navigate to the parent level first</div>
+            <div class="step-desc">Drill into the node you want to add a child under. Or stay at root level to add a new top-level site.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">Tap + Register child node</div>
+            <div class="step-desc">The dashed button at the bottom of the tree list opens the Register Node form.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Use the ID suffix suggestion dropdown</div>
+            <div class="step-desc">Click into the ID Suffix field. A dropdown appears with suggested suffixes — the system looks at existing siblings to detect patterns (e.g. if GB-1 and GB-2 exist, it suggests GB-3 at the top) and shows the full industrial library ordered by most-used on your site.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sandbox">
+        <div class="sandbox-header">
+          <div class="sandbox-title">Suffix suggestion — demo</div>
+        </div>
+        <div class="sandbox-body">
+          <div class="mock-field">
+            <label>ID Suffix *</label>
+            <input class="mock-input active" id="demoSuffixInput" placeholder="e.g. GB-1, PMP-007"
+              oninput="filterSuggestDemo(this.value)" onfocus="showSuggestDemo()" readonly/>
+          </div>
+          <div class="mock-dropdown" id="suggestDemoDropdown"></div>
+          <div class="demo-feedback" id="suggestDemoFeedback"></div>
+          <div style="margin-top:8px;font-family:var(--font-mono);font-size:.7rem;color:var(--md-gold-dk);" id="suggestIdPreview"></div>
+        </div>
+      </div>
+
+      <div class="steps" style="margin-top:16px;">
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-body">
+            <div class="step-title">Fill in the label, type, and criticality</div>
+            <div class="step-desc">The label is a plain English name for the node. Criticality — Critical, High, Medium, Low — determines how the node is highlighted in dashboards and alerts.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">5</div>
+          <div class="step-body">
+            <div class="step-title">Add hazards and isolation points</div>
+            <div class="step-desc">List known hazards as comma-separated values — for example <code style="font-family:var(--font-mono);color:var(--md-gold-dk);">electrical, rotating, high-temp</code>. Isolation points are the physical lockout points for this asset — for example <code style="font-family:var(--font-mono);color:var(--md-gold-dk);">ISO-01, ISO-02</code>. These feed directly into Safe Work Procedures.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">6</div>
+          <div class="step-body">
+            <div class="step-title">Tick Measurable if readings apply</div>
+            <div class="step-desc">If DiagnosticWand vibration or acoustic readings should be taken at this node, tick the Measurable checkbox. A gold CM badge will appear on the node in the tree. You can enable or disable this at any time as long as no readings exist.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="body-h2">Criticality levels</div>
+      <div class="mock-tree" style="margin-bottom:16px;">
+        <div class="mock-node"><div class="mock-node-id">CRIT</div><div class="mock-node-label">Critical — failure stops production or causes safety incident</div><div class="mock-node-right"><span class="mock-badge mb-crit">Critical</span></div></div>
+        <div class="mock-node"><div class="mock-node-id">HIGH</div><div class="mock-node-label">High — significant impact if it fails</div><div class="mock-node-right"><span class="mock-badge mb-high">High</span></div></div>
+        <div class="mock-node"><div class="mock-node-id">MED</div><div class="mock-node-label">Medium — manageable impact, maintenance priority</div><div class="mock-node-right"><span class="mock-badge mb-med">Medium</span></div></div>
+        <div class="mock-node"><div class="mock-node-id">LOW</div><div class="mock-node-label">Low — minimal impact if it fails</div><div class="mock-node-right"><span class="mock-badge mb-low">Low</span></div></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="body-h2">Deleting a node</div>
+      <div class="body-p">A node can only be deleted if it has no children and no documents attached. To delete a branch of the tree, you must delete from the bottom up — deepest children first, working back to the parent.</div>
+      <div class="info-warn info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div>Nodes with readings attached cannot be deleted. This protects the integrity of the historical condition data.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOPIC: Condition Monitoring ══ -->
+  <div class="topic" id="topic-condition" data-roles="admin,supervisor,maintenance_planner,artisan,read_only">
+    <div class="topic-hero">
+      <div class="topic-eyebrow">Condition Module</div>
+      <div class="topic-title">Condition Monitoring</div>
+      <div class="topic-desc">Condition monitoring connects Operum's asset register to DiagnosticWand — the vibration and acoustic analysis tool. Any node marked as Measurable in the asset register can receive readings from the field.</div>
+      <div class="topic-roles">
+        <span class="role-badge">Admin</span>
+        <span class="role-badge">Supervisor</span>
+        <span class="role-badge">Maint. Planner</span>
+        <span class="role-badge">Artisan</span>
+        <span class="role-badge">Read Only</span>
+      </div>
+    </div>
+    <div class="topic-body">
+      <div class="body-h2">What is a measurable node?</div>
+      <div class="body-p">Any node in the asset tree can be marked as measurable — not just machines. A bearing (component), a specific measurement position (maintainable), or an entire gearbox assembly can all be measurable independently.</div>
+
+      <div class="sandbox">
+        <div class="sandbox-header">
+          <div class="sandbox-title">Measurable nodes in the tree</div>
+        </div>
+        <div class="sandbox-body">
+          <div class="mock-tree">
+            <div class="mock-node"><div class="mock-node-id">03 CV-180 GB-1</div><div class="mock-node-label">Gearbox 1</div><div class="mock-node-right"><span class="mock-badge mb-crit">Critical</span><span class="mock-chevron">›</span></div></div>
+            <div class="mock-indent">
+              <div class="mock-node measurable"><div class="mock-node-id">03 CV-180 GB-1 DE</div><div class="mock-node-label">Drive End Bearing</div><div class="mock-node-right"><span class="mock-badge mb-cm">CM</span><span class="mock-badge mb-crit">Critical</span></div></div>
+              <div class="mock-node measurable"><div class="mock-node-id">03 CV-180 GB-1 NDE</div><div class="mock-node-label">Non-Drive End Bearing</div><div class="mock-node-right"><span class="mock-badge mb-cm">CM</span><span class="mock-badge mb-high">High</span></div></div>
+            </div>
+          </div>
+          <div style="margin-top:10px;font-size:.8rem;color:var(--md-muted);">Gold left border + CM badge = measurable. DiagnosticWand can take readings at these nodes.</div>
+        </div>
+      </div>
+
+      <div class="body-h2">Launching DiagnosticWand</div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-body">
+            <div class="step-title">Tap the Condition module in the bottom nav</div>
+            <div class="step-desc">This opens the Condition Monitoring view.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-body">
+            <div class="step-title">Tap Open DiagnosticWand</div>
+            <div class="step-desc">DiagnosticWand opens in a new tab. Your Operum session token is passed across — future versions will allow seamless single sign-on.</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-body">
+            <div class="step-title">Select the measurement point and take the reading</div>
+            <div class="step-desc">In DiagnosticWand, navigate to the asset you want to measure. Hold the phone against the machine at the measurement point and capture vibration and acoustic data.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="info-note info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>DiagnosticWand and Operum are currently separate apps that share assets. Full integration — where DiagnosticWand reads the Operum asset register directly — is the next milestone.</div>
+      </div>
+
+      <div class="body-h2">Reading what the badges mean</div>
+      <div class="mock-tree" style="margin-bottom:4px;">
+        <div class="mock-node measurable"><div class="mock-node-id">PMP-007 INL</div><div class="mock-node-label">Pump 7 Inlet</div><div class="mock-node-right"><span class="mock-badge" style="background:rgba(76,175,122,.18);color:#4caf7a;">NORMAL</span></div></div>
+        <div class="mock-node measurable"><div class="mock-node-id">GB-1 DE</div><div class="mock-node-label">Gearbox Drive End</div><div class="mock-node-right"><span class="mock-badge" style="background:rgba(212,132,42,.18);color:#d4842a;">WARNING</span></div></div>
+        <div class="mock-node measurable"><div class="mock-node-id">FAN-2 BRG</div><div class="mock-node-label">Fan 2 Bearing</div><div class="mock-node-right"><span class="mock-badge" style="background:rgba(201,76,76,.18);color:#c94c4c;">CRITICAL</span></div></div>
+        <div class="mock-node measurable"><div class="mock-node-id">MTR-3 NDE</div><div class="mock-node-label">Motor 3 NDE</div><div class="mock-node-right"><span class="mock-badge" style="background:rgba(76,143,201,.18);color:#4c8fc9;">NO DATA</span></div></div>
+      </div>
+      <div style="font-size:.8rem;color:var(--md-muted);margin-bottom:16px;">Status is calculated from the ratio of the latest RMS reading against the established baseline.</div>
+
+      <table class="role-table">
+        <thead><tr><th>Status</th><th>Meaning</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><span style="color:var(--md-success);">NORMAL</span></td><td>RMS within 2× baseline</td><td>Continue scheduled monitoring</td></tr>
+          <tr><td><span style="color:var(--md-warning);">WARNING</span></td><td>RMS 2–4× baseline</td><td>Increase monitoring frequency, investigate</td></tr>
+          <tr><td><span style="color:var(--md-danger);">CRITICAL</span></td><td>RMS &gt;4× baseline</td><td>Immediate inspection — do not defer</td></tr>
+          <tr><td><span style="color:var(--md-info);">NO DATA</span></td><td>No readings yet taken</td><td>First reading will set the baseline automatically</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ TOPIC: Safety (stub) ══ -->
+  <div class="topic" id="topic-safety" data-roles="admin,supervisor,safety_manager,artisan,operator,read_only">
+    <div class="topic-hero">
+      <div class="topic-eyebrow">Safety Module · Phase 2</div>
+      <div class="topic-title">Safety Management</div>
+      <div class="topic-desc">The Safety module covers all OHSA-mandated safety functions — from daily toolbox talks to formal Permit to Work. It is currently in design and will be available in Phase 2.</div>
+      <div class="topic-roles">
+        <span class="role-badge">Safety Manager</span>
+        <span class="role-badge">Supervisor</span>
+        <span class="role-badge">Artisan</span>
+      </div>
+    </div>
+    <div class="topic-body">
+      <div class="body-h2">What is planned</div>
+      <div class="body-p">The Safety module will include the following, built in sequence from lowest to highest risk:</div>
+      <ul class="body-ul">
+        <li><strong>Toolbox talks</strong> — attendance register, topics covered, sign-off per person</li>
+        <li><strong>BBS observations</strong> — behaviour based safety capture in the field</li>
+        <li><strong>Safety rep inspections</strong> — Section 8/9 OHSA legal requirement</li>
+        <li><strong>Incident &amp; near-miss reporting</strong> — Section 24 OHSA compliance</li>
+        <li><strong>Risk assessments</strong> — linked to job cards and asset records</li>
+        <li><strong>Permit to Work (PTW)</strong> — highest stakes, built last, requires safety officer input before design begins</li>
+      </ul>
+      <div class="info-note info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>All safety functions are connected to the asset register. A toolbox talk is linked to the assets being worked on. A risk assessment references the asset's known hazards and isolation points. Nothing is free-floating.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOPIC: Maintenance (stub) ══ -->
+  <div class="topic" id="topic-maintenance" data-roles="admin,supervisor,maintenance_planner,artisan,operator,read_only">
+    <div class="topic-hero">
+      <div class="topic-eyebrow">Maintenance Module · Phase 3</div>
+      <div class="topic-title">Maintenance Management</div>
+      <div class="topic-desc">The Maintenance module replaces paper job cards and informal verbal handovers with a structured digital workflow — from fault notification through to sign-off and feedback.</div>
+      <div class="topic-roles">
+        <span class="role-badge">Maint. Planner</span>
+        <span class="role-badge">Supervisor</span>
+        <span class="role-badge">Artisan</span>
+        <span class="role-badge">Operator</span>
+      </div>
+    </div>
+    <div class="topic-body">
+      <div class="body-h2">What is planned</div>
+      <ul class="body-ul">
+        <li><strong>Fault notifications</strong> — any user can raise a fault against an asset</li>
+        <li><strong>Work orders</strong> — created from notifications or planned schedules</li>
+        <li><strong>Job cards</strong> — artisan-facing, mobile-first execution view</li>
+        <li><strong>Planned maintenance scheduling</strong> — PM frequencies linked to asset records</li>
+        <li><strong>Sign-off and feedback loop</strong> — close the loop from fault to fix</li>
+        <li><strong>Maintenance history per asset</strong> — full record of all work done</li>
+      </ul>
+      <div class="info-note info-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <div>Condition monitoring data from DiagnosticWand feeds directly into maintenance decisions. A WARNING or CRITICAL reading on a measurable asset will eventually auto-generate a fault notification.</div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<!-- Mobile sidebar toggle -->
+<button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+</button>
+
+<script>
+'use strict';
+
+// ─── Nav definition ───────────────────────────────────────────────────────────
+const NAV = [
+  { section: 'Getting Started', items: [
+    { id: 'welcome', label: 'Overview', roles: 'all',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>' },
+  ]},
+  { section: 'Register Module', items: [
+    { id: 'employees', label: 'Employees', roles: 'admin,supervisor,safety_manager,maintenance_planner',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
+    { id: 'assets', label: 'Asset Register', roles: 'admin,supervisor,safety_manager,maintenance_planner,artisan,operator,read_only,contractor',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
+  ]},
+  { section: 'Modules', items: [
+    { id: 'condition', label: 'Condition Monitoring', roles: 'admin,supervisor,maintenance_planner,artisan,read_only',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>' },
+    { id: 'safety', label: 'Safety', roles: 'admin,supervisor,safety_manager,artisan,operator,read_only',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>' },
+    { id: 'maintenance', label: 'Maintenance', roles: 'admin,supervisor,maintenance_planner,artisan,operator,read_only',
+      icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>' },
+  ]},
+];
+
+// ─── Mock data ────────────────────────────────────────────────────────────────
+const MOCK_EMPLOYEES = [
+  { id: 'emp_001', name: 'Site Administrator', email: 'admin@site.local', role: 'admin', active: 1 },
+  { id: 'emp_002', name: 'John Dlamini',       email: 'j.dlamini@site.local', role: 'supervisor', active: 1 },
+  { id: 'emp_003', name: 'Sarah van Wyk',      email: 's.vanwyk@site.local', role: 'safety_manager', active: 1 },
+  { id: 'emp_004', name: 'Sipho Nkosi',        email: 's.nkosi@site.local', role: 'artisan', active: 1 },
+  { id: 'emp_005', name: 'Maria Pretorius',    email: 'm.pretorius@site.local', role: 'artisan', active: 1 },
+  { id: 'emp_006', name: 'Dave Botha',         email: 'd.botha@site.local', role: 'operator', active: 1 },
+];
+
+const MOCK_SUGGESTIONS = [
+  { suffix: 'GB-3', description: 'Gearbox', source: 'pattern' },
+  { suffix: 'MTR-2', description: 'Motor (Electric)', source: 'pattern' },
+  { suffix: 'PMP', description: 'Pump', source: 'library' },
+  { suffix: 'FAN', description: 'Fan', source: 'library' },
+  { suffix: 'COMP', description: 'Compressor', source: 'library' },
+  { suffix: 'BLW', description: 'Blower', source: 'library' },
+  { suffix: 'CV', description: 'Conveyor', source: 'library' },
+  { suffix: 'SCR', description: 'Screen / Vibrating', source: 'library' },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+let currentRole  = 'admin';
+let currentTopic = 'welcome';
+const $ = id => document.getElementById(id);
+
+// ─── Role helpers ─────────────────────────────────────────────────────────────
+function roleBadgeClass(role) {
+  if (role === 'admin') return 'mb-role-a';
+  if (['supervisor','safety_manager','maintenance_planner'].includes(role)) return 'mb-role-s';
+  if (['artisan','operator'].includes(role)) return 'mb-role-t';
+  return 'mb-role-o';
+}
+function roleLabel(role) {
+  return { admin:'Admin', safety_manager:'Safety Mgr', maintenance_planner:'Maint. Planner',
+    supervisor:'Supervisor', artisan:'Artisan', operator:'Operator',
+    read_only:'Read Only', contractor:'Contractor' }[role] || role;
+}
+function hasAccess(rolesStr) {
+  if (rolesStr === 'all') return true;
+  return rolesStr.split(',').includes(currentRole);
+}
+
+// ─── Build nav ────────────────────────────────────────────────────────────────
+function buildNav() {
+  const nav = $('sideNav');
+  nav.innerHTML = '';
+  let visibleCount = 0;
+
+  NAV.forEach(section => {
+    const visibleItems = section.items.filter(i => hasAccess(i.roles));
+    if (!visibleItems.length) return;
+
+    const sec = document.createElement('div');
+    sec.className = 'nav-section';
+    sec.innerHTML = `<div class="nav-section-title">${section.section}</div>`;
+
+    visibleItems.forEach(item => {
+      const el = document.createElement('div');
+      el.className = `nav-item${item.id === currentTopic ? ' active' : ''}`;
+      el.dataset.id = item.id;
+      el.innerHTML = `${item.icon} ${item.label}`;
+      el.addEventListener('click', () => showTopic(item.id));
+      sec.appendChild(el);
+      visibleCount++;
+    });
+
+    nav.appendChild(sec);
+  });
+
+  updateProgress();
+}
+
+// ─── Show topic ───────────────────────────────────────────────────────────────
+function showTopic(id) {
+  currentTopic = id;
+  document.querySelectorAll('.topic').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.id === id));
+  const t = $(`topic-${id}`);
+  if (t) {
+    t.classList.add('active');
+    $('mainContent').scrollTop = 0;
+  }
+  updateProgress();
+  if (window.innerWidth <= 768) $('sidebar').classList.remove('open');
+  initDemos(id);
+}
+
+// ─── Progress ─────────────────────────────────────────────────────────────────
+function updateProgress() {
+  const all  = NAV.flatMap(s => s.items.filter(i => hasAccess(i.roles)));
+  const idx  = all.findIndex(i => i.id === currentTopic);
+  const pct  = all.length > 1 ? Math.round(((idx + 1) / all.length) * 100) : 100;
+  $('progressFill').style.width = pct + '%';
+}
+
+// ─── Role change ──────────────────────────────────────────────────────────────
+function applyRole() {
+  currentRole = $('roleSelect').value;
+  // If current topic not accessible, go to first available
+  const allVisible = NAV.flatMap(s => s.items.filter(i => hasAccess(i.roles)));
+  if (!allVisible.find(i => i.id === currentTopic)) {
+    currentTopic = allVisible[0]?.id || 'welcome';
+  }
+  buildNav();
+  showTopic(currentTopic);
+}
+
+// ─── Demo: employees ──────────────────────────────────────────────────────────
+function resetEmpDemo() { renderEmpDemo(); }
+function renderEmpDemo() {
+  const body = $('empDemoBody');
+  if (!body) return;
+  body.innerHTML = '';
+  MOCK_EMPLOYEES.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'mock-emp-row';
+    row.innerHTML = `
+      <div>
+        <div class="mock-emp-name">${e.name}</div>
+        <div class="mock-emp-sub">${e.email} · ${e.id}</div>
+      </div>
+      <span class="mock-badge ${roleBadgeClass(e.role)}">${roleLabel(e.role)}</span>`;
+    body.appendChild(row);
+  });
+}
+
+// ─── Demo: asset tree ─────────────────────────────────────────────────────────
+const DEMO_TREE = {
+  null: [
+    { id:'SITE-01', label:'Sasol Secunda — Block 3', type:'site', crit:'low', measurable:0 },
+  ],
+  'SITE-01': [
+    { id:'SITE-01 03', label:'Conveyor Plant 3', type:'plant', crit:'medium', measurable:0 },
+  ],
+  'SITE-01 03': [
+    { id:'SITE-01 03 CV-180', label:'Ash Conveyor 180', type:'system', crit:'critical', measurable:0 },
+    { id:'SITE-01 03 PMP-001', label:'Feed Pump 1', type:'machine', crit:'high', measurable:1 },
+  ],
+  'SITE-01 03 CV-180': [
+    { id:'SITE-01 03 CV-180 GB-1', label:'Gearbox 1', type:'machine', crit:'critical', measurable:0 },
+    { id:'SITE-01 03 CV-180 MTR-1', label:'Drive Motor', type:'machine', crit:'critical', measurable:1 },
+  ],
+};
+
+let demoStack = [];
+
+function resetAssetDemo() {
+  demoStack = [];
+  renderDemoTree(null);
+  $('assetDemoFeedback').textContent = '';
+}
+
+function demoNavigate(parentId) {
+  const node = Object.values(DEMO_TREE).flat().find(n => n.id === parentId);
+  if (!node) return;
+  demoStack.push({ id: node.id, label: node.label });
+  renderDemoTree(parentId);
+  $('assetDemoFeedback').textContent = `Navigated into: ${node.label}`;
+}
+
+function renderDemoTree(parentId) {
+  const tree  = $('assetDemoTree');
+  const nodes = DEMO_TREE[parentId] || [];
+  const critClass = { critical:'mb-crit', high:'mb-high', medium:'mb-med', low:'mb-low' };
+  tree.innerHTML = '';
+
+  if (demoStack.length > 0) {
+    const backBtn = document.createElement('div');
+    backBtn.style.cssText = 'font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);cursor:pointer;padding:6px 0 10px;';
+    backBtn.textContent = '‹ ' + (demoStack.length === 1 ? 'All Sites' : demoStack[demoStack.length - 2].label);
+    backBtn.onclick = () => {
+      demoStack.pop();
+      renderDemoTree(demoStack.length ? demoStack[demoStack.length-1].id : null);
+    };
+    tree.appendChild(backBtn);
+  }
+
+  nodes.forEach(n => {
+    const el = document.createElement('div');
+    el.className = `mock-node${n.measurable ? ' measurable' : ''}`;
+    el.innerHTML = `
+      <div class="mock-node-id">${n.id}</div>
+      <div class="mock-node-label">${n.label}</div>
+      <div class="mock-node-right">
+        ${n.measurable ? '<span class="mock-badge mb-cm">CM</span>' : ''}
+        <span class="mock-badge ${critClass[n.crit]}">${n.crit}</span>
+        ${DEMO_TREE[n.id] ? '<span class="mock-chevron" style="cursor:pointer;font-size:1.1rem;" title="View children">›</span>' : ''}
+      </div>`;
+    el.querySelector('.mock-chevron')?.addEventListener('click', e => {
+      e.stopPropagation(); demoNavigate(n.id);
+    });
+    el.addEventListener('click', () => {
+      tree.querySelectorAll('.mock-node').forEach(x => x.classList.remove('selected'));
+      el.classList.add('selected');
+      $('assetDemoFeedback').textContent = `Selected: ${n.label} (${n.id})`;
+    });
+    tree.appendChild(el);
+  });
+
+  if (!nodes.length) {
+    tree.innerHTML += '<div style="font-size:.8rem;color:var(--md-muted);padding:12px 0;">No child nodes registered at this level.</div>';
+  }
+}
+
+// ─── Demo: suffix suggest ─────────────────────────────────────────────────────
+function showSuggestDemo() {
+  renderSuggestDropdown(MOCK_SUGGESTIONS);
+}
+
+function filterSuggestDemo(val) {
+  const filtered = val
+    ? MOCK_SUGGESTIONS.filter(s =>
+        s.suffix.toUpperCase().startsWith(val.toUpperCase()) ||
+        s.description.toUpperCase().includes(val.toUpperCase()))
+    : MOCK_SUGGESTIONS;
+  renderSuggestDropdown(filtered);
+  $('suggestIdPreview').textContent = val ? `Full ID: SITE-01 03 CV-180 ${val}` : '';
+}
+
+function renderSuggestDropdown(items) {
+  const dd = $('suggestDemoDropdown');
+  dd.innerHTML = '';
+  if (!items.length) { dd.style.display='none'; return; }
+  dd.style.display = 'block';
+  items.slice(0, 6).forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'mock-suggest-item';
+    item.innerHTML = `
+      <div>
+        <div class="mock-suggest-text">${s.suffix}</div>
+        <div class="mock-suggest-desc">${s.description}</div>
+      </div>
+      <span class="mock-suggest-tag ${s.source === 'pattern' ? 'tag-pattern' : 'tag-library'}">
+        ${s.source === 'pattern' ? 'next in sequence' : 'library'}
+      </span>`;
+    item.addEventListener('click', () => {
+      $('demoSuffixInput').value = s.suffix;
+      $('suggestIdPreview').textContent = `Full ID: SITE-01 03 CV-180 ${s.suffix}`;
+      $('suggestDemoFeedback').textContent = `Selected: ${s.suffix} — ${s.description}`;
+      dd.style.display = 'none';
+    });
+    dd.appendChild(item);
+  });
+}
+
+// ─── Init demos per topic ─────────────────────────────────────────────────────
+function initDemos(id) {
+  if (id === 'employees') renderEmpDemo();
+  if (id === 'assets')    renderDemoTree(null);
+}
+
+// ─── Mobile sidebar ───────────────────────────────────────────────────────────
+function toggleSidebar() {
+  $('sidebar').classList.toggle('open');
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+buildNav();
+showTopic('welcome');
+</script>
+</body>
+</html>
