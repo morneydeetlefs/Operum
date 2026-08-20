@@ -319,6 +319,146 @@ export default {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // SUFFIX LIBRARY
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── GET /api/library/suggest ──────────────────────────────────────────────
+    // Returns ordered suggestions for the suffix input field.
+    // ?parent_id=X  — look at siblings under this parent to detect patterns
+    // ?node_type=X  — filter library entries to those matching this node type
+    //
+    // Response order:
+    //   1. Pattern continuations from siblings (e.g. GB-3 if GB-1, GB-2 exist)
+    //   2. Library entries ordered by use_count DESC, filtered by node_type
+    if (method === 'GET' && path === '/api/library/suggest') {
+      const parentId  = url.searchParams.get('parent_id') || null;
+      const nodeType  = url.searchParams.get('node_type') || null;
+
+      // Step 1 — detect patterns from siblings
+      const continuations: { suffix: string; description: string; source: string }[] = [];
+      if (parentId) {
+        const siblings = await db.prepare(
+          `SELECT suffix FROM assets WHERE parent_id = ? ORDER BY suffix`
+        ).bind(parentId).all<{ suffix: string }>();
+
+        // Group siblings by prefix (letters before first digit or dash-digit)
+        const prefixGroups = new Map<string, number[]>();
+        for (const s of siblings.results) {
+          const m = s.suffix.match(/^([A-Z]+)[- ]?(\d+)$/i);
+          if (m) {
+            const prefix = m[1].toUpperCase();
+            const num    = parseInt(m[2], 10);
+            if (!prefixGroups.has(prefix)) prefixGroups.set(prefix, []);
+            prefixGroups.get(prefix)!.push(num);
+          }
+        }
+
+        // Suggest next number for each detected prefix group
+        for (const [prefix, nums] of prefixGroups) {
+          const next    = Math.max(...nums) + 1;
+          const libRow  = await db.prepare(
+            `SELECT description FROM suffix_library WHERE prefix = ?`
+          ).bind(prefix).first<{ description: string }>();
+          continuations.push({
+            suffix:      `${prefix}-${next}`,
+            description: libRow ? libRow.description : prefix,
+            source:      'pattern',
+          });
+        }
+      }
+
+      // Step 2 — library entries ordered by use_count, filtered by node_type
+      let libRows: { prefix: string; description: string; use_count: number }[] = [];
+      if (nodeType) {
+        const all = await db.prepare(
+          `SELECT prefix, description, use_count FROM suffix_library ORDER BY use_count DESC, prefix ASC`
+        ).all<{ prefix: string; description: string; use_count: number }>();
+        // Filter in JS — SQLite JSON functions are limited in D1
+        libRows = all.results.filter(r => {
+          try {
+            const types: string[] = JSON.parse(r.node_types || '[]') as string[];
+            return types.includes(nodeType);
+          } catch { return true; }
+        });
+      } else {
+        const all = await db.prepare(
+          `SELECT prefix, description, use_count FROM suffix_library ORDER BY use_count DESC, prefix ASC`
+        ).all<{ prefix: string; description: string; use_count: number }>();
+        libRows = all.results;
+      }
+
+      // Remove from library list any prefixes already in continuations
+      const continuationPrefixes = new Set(continuations.map(c => c.suffix.split('-')[0]));
+      const library = libRows
+        .filter(r => !continuationPrefixes.has(r.prefix))
+        .map(r => ({ suffix: r.prefix, description: r.description, source: 'library' }));
+
+      return json({ suggestions: [...continuations, ...library] });
+    }
+
+    // ── GET /api/library ──────────────────────────────────────────────────────
+    // Full library list — used by admin settings screen.
+    if (method === 'GET' && path === '/api/library') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const rows = await db.prepare(
+        `SELECT * FROM suffix_library ORDER BY use_count DESC, prefix ASC`
+      ).all();
+      return json({ library: rows.results });
+    }
+
+    // ── POST /api/library ─────────────────────────────────────────────────────
+    // Admin adds a custom prefix to the library.
+    if (method === 'POST' && path === '/api/library') {
+      if (!can(actor.role, ADMIN_ROLES)) return err('Forbidden', 403, origin);
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      const { prefix, description, node_types: nt } = b;
+      if (!prefix || !description) return err('prefix and description are required', 400, origin);
+
+      const exists = await db.prepare(`SELECT id FROM suffix_library WHERE prefix = ?`).bind(String(prefix).toUpperCase()).first();
+      if (exists) return err(`Prefix "${prefix}" already exists`, 409, origin);
+
+      await db.prepare(
+        `INSERT INTO suffix_library (prefix, description, node_types, created_by)
+         VALUES (?, ?, ?, ?)`
+      ).bind(
+        String(prefix).toUpperCase().trim(),
+        String(description).trim(),
+        JSON.stringify(Array.isArray(nt) ? nt : []),
+        actor.sub
+      ).run();
+
+      return json({ ok: true }, 201);
+    }
+
+    // ── PATCH /api/library/:prefix ────────────────────────────────────────────
+    const libMatch = path.match(/^\/api\/library\/([^/]+)$/);
+    if (libMatch && method === 'PATCH') {
+      if (!can(actor.role, ADMIN_ROLES)) return err('Forbidden', 403, origin);
+      const prefix = decodeURIComponent(libMatch[1]).toUpperCase();
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      const fields: string[] = [];
+      const vals: unknown[]  = [];
+      if (b.description !== undefined) { fields.push('description = ?'); vals.push(String(b.description)); }
+      if (b.node_types  !== undefined) { fields.push('node_types = ?');  vals.push(JSON.stringify(Array.isArray(b.node_types) ? b.node_types : [])); }
+      if (!fields.length) return err('No fields to update', 400, origin);
+      vals.push(prefix);
+      await db.prepare(`UPDATE suffix_library SET ${fields.join(', ')} WHERE prefix = ?`).bind(...vals).run();
+      return json({ ok: true });
+    }
+
+    // ── DELETE /api/library/:prefix ───────────────────────────────────────────
+    if (libMatch && method === 'DELETE') {
+      if (!can(actor.role, ADMIN_ROLES)) return err('Forbidden', 403, origin);
+      const prefix = decodeURIComponent(libMatch[1]).toUpperCase();
+      // Only custom entries (created_by not null) can be deleted
+      const row = await db.prepare(`SELECT created_by FROM suffix_library WHERE prefix = ?`).bind(prefix).first<{ created_by: string | null }>();
+      if (!row) return err('Not found', 404, origin);
+      if (!row.created_by) return err('System defaults cannot be deleted — edit node_types or description instead', 403, origin);
+      await db.prepare(`DELETE FROM suffix_library WHERE prefix = ?`).bind(prefix).run();
+      return json({ ok: true });
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // ASSETS
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -389,6 +529,14 @@ export default {
         install_date ? String(install_date) : null,
         actor.sub
       ).run();
+
+      // Increment use_count for the prefix used — drives suggestion ranking
+      const prefixMatch = String(suffix).trim().match(/^([A-Z]+)/i);
+      if (prefixMatch) {
+        await db.prepare(
+          `UPDATE suffix_library SET use_count = use_count + 1 WHERE prefix = ?`
+        ).bind(prefixMatch[1].toUpperCase()).run();
+      }
 
       await log(db, actor.sub, 'create', `asset:${fullId}`, { label, node_type }, ip);
       const asset = await db.prepare(`SELECT * FROM assets WHERE id = ?`).bind(fullId).first();

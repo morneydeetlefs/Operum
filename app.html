@@ -414,6 +414,23 @@ body::before {
 .empty-title { font-size: .9rem; margin-bottom: 4px; }
 .empty-sub { font-size: .8rem; }
 
+/* ── Suffix suggest dropdown ────────────────────────────────────────────────── */
+.suffix-item {
+  padding: 9px 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--md-border); transition: background .12s;
+}
+.suffix-item:last-child { border-bottom: none; }
+.suffix-item:hover { background: var(--md-surface); }
+.suffix-item-text { font-family: var(--font-mono); font-size: .85rem; color: var(--md-cream); }
+.suffix-item-desc { font-size: .75rem; color: var(--md-muted); }
+.suffix-item-tag {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .08em;
+  text-transform: uppercase; padding: 1px 5px; border-radius: 3px;
+}
+.suffix-tag-pattern { background: rgba(201,148,60,.15); color: var(--md-gold); }
+.suffix-tag-library { background: rgba(122,109,88,.12); color: var(--md-muted); }
+
 /* ── Loader ─────────────────────────────────────────────────────────────────── */
 .loader {
   display: flex; align-items: center; justify-content: center;
@@ -625,10 +642,18 @@ body::before {
     <input type="hidden" id="assetModalParentId"/>
     <input type="hidden" id="assetModalEditId"/>
 
-    <div class="form-field">
+    <div class="form-field" style="position:relative;">
       <label class="form-label">ID Suffix <span class="form-required">*</span></label>
-      <input class="form-input" id="aNodeSuffix" placeholder="e.g. GB-1, PMP-007, 03 CV-180"/>
-      <div class="form-hint" id="aNodeIdPreview" style="color:var(--md-gold-dk);"></div>
+      <input class="form-input" id="aNodeSuffix" placeholder="e.g. GB-1, PMP-007"
+             autocomplete="off" spellcheck="false"/>
+      <!-- Suggestion dropdown -->
+      <div id="suffixDropdown" style="
+        display:none; position:absolute; top:100%; left:0; right:0; z-index:100;
+        background:var(--md-panel); border:1px solid var(--md-border-lt);
+        border-top:none; border-radius:0 0 var(--md-radius) var(--md-radius);
+        max-height:220px; overflow-y:auto;">
+      </div>
+      <div class="form-hint" id="aNodeIdPreview" style="color:var(--md-gold-dk);margin-top:6px;"></div>
     </div>
     <div class="form-field">
       <label class="form-label">Label / Description <span class="form-required">*</span></label>
@@ -1159,7 +1184,10 @@ function openAddAsset(parentId) {
   $('aNodeIsolation').value      = '';
   $('aNodeMeasurable').checked   = false;
   updateIdPreview();
+  allSuggestions = [];
+  closeDropdown();
   $('assetModal').classList.add('open');
+  loadSuggestions();
 }
 
 function openEditAsset() {
@@ -1184,7 +1212,110 @@ function openEditAsset() {
 
 function closeAssetModal() { $('assetModal').classList.remove('open'); }
 
-$('aNodeSuffix').addEventListener('input', updateIdPreview);
+// ─── Suffix suggest ───────────────────────────────────────────────────────────
+
+let suggestDebounce = null;
+let allSuggestions  = [];   // full list fetched from API
+let dropdownOpen    = false;
+
+$('aNodeSuffix').addEventListener('input', () => {
+  updateIdPreview();
+  clearTimeout(suggestDebounce);
+  suggestDebounce = setTimeout(filterDropdown, 80);
+});
+
+$('aNodeSuffix').addEventListener('focus', () => {
+  if (allSuggestions.length) showDropdown(allSuggestions);
+});
+
+$('aNodeSuffix').addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeDropdown();
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    const first = $('suffixDropdown').querySelector('.suffix-item');
+    if (first) first.focus();
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#suffixDropdown') && e.target !== $('aNodeSuffix')) closeDropdown();
+});
+
+async function loadSuggestions() {
+  const parentId = $('assetModalParentId').value;
+  const nodeType = $('aNodeType').value;
+  const qs = new URLSearchParams();
+  if (parentId) qs.set('parent_id', parentId);
+  if (nodeType) qs.set('node_type', nodeType);
+  try {
+    const data = await apiFetch(`/library/suggest?${qs.toString()}`);
+    allSuggestions = data.suggestions || [];
+    filterDropdown();
+  } catch {
+    allSuggestions = [];
+  }
+}
+
+function filterDropdown() {
+  const typed = $('aNodeSuffix').value.trim().toUpperCase();
+  if (!typed) {
+    showDropdown(allSuggestions);
+    return;
+  }
+  const filtered = allSuggestions.filter(s =>
+    s.suffix.toUpperCase().startsWith(typed) ||
+    s.description.toUpperCase().includes(typed)
+  );
+  showDropdown(filtered);
+}
+
+function showDropdown(items) {
+  const dd = $('suffixDropdown');
+  dd.innerHTML = '';
+  if (!items.length) { closeDropdown(); return; }
+
+  items.slice(0, 12).forEach(s => {
+    const item = document.createElement('div');
+    item.className  = 'suffix-item';
+    item.tabIndex   = 0;
+    item.innerHTML  = `
+      <div>
+        <div class="suffix-item-text">${s.suffix}</div>
+        <div class="suffix-item-desc">${s.description}</div>
+      </div>
+      <span class="suffix-item-tag ${s.source === 'pattern' ? 'suffix-tag-pattern' : 'suffix-tag-library'}">
+        ${s.source === 'pattern' ? 'next in sequence' : 'library'}
+      </span>`;
+
+    const choose = () => {
+      $('aNodeSuffix').value = s.suffix;
+      updateIdPreview();
+      closeDropdown();
+      $('aNodeLabel').focus();
+    };
+    item.addEventListener('click', choose);
+    item.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); item.nextElementSibling?.focus(); }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); item.previousElementSibling ? item.previousElementSibling.focus() : $('aNodeSuffix').focus(); }
+      if (e.key === 'Escape')    closeDropdown();
+    });
+    dd.appendChild(item);
+  });
+
+  dd.style.display = 'block';
+  dropdownOpen = true;
+}
+
+function closeDropdown() {
+  $('suffixDropdown').style.display = 'none';
+  dropdownOpen = false;
+}
+
+// Reload suggestions when node_type changes — affects library filter
+$('aNodeType').addEventListener('change', () => {
+  if ($('assetModal').classList.contains('open')) loadSuggestions();
+});
 
 function updateIdPreview() {
   const parentId = $('assetModalParentId').value;
