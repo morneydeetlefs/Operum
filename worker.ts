@@ -464,7 +464,11 @@ export default {
     if (method === 'GET' && path === '/api/assets') {
       const parentId = url.searchParams.get('parent_id') || null;
       const rows = await db.prepare(
-        `SELECT * FROM assets WHERE parent_id ${parentId ? '= ?' : 'IS NULL'} ORDER BY id`
+        `SELECT a.*,
+          (SELECT COUNT(*) FROM assets c WHERE c.parent_id = a.id) AS child_count
+         FROM assets a
+         WHERE a.parent_id ${parentId ? '= ?' : 'IS NULL'}
+         ORDER BY a.id`
       ).bind(...(parentId ? [parentId] : [])).all<AssetRow>();
       return json({ assets: rows.results });
     }

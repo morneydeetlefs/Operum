@@ -1899,12 +1899,19 @@ async function openCopyModal() {
   $('copyNewSuffix').value = incrementSuffix(srcSuffix);
   updateCopyIdPreview();
 
-  // Resolve parent label for display
+  // Resolve parent label for display — check quick-search cache first
   if (copyDestParentId) {
-    try {
-      const d = await apiFetch(`/assets/${encodeURIComponent(copyDestParentId)}`);
-      copyDestParentLabel = d.asset?.label || copyDestParentId;
-    } catch { copyDestParentLabel = copyDestParentId; }
+    const cached = qsAllAssets.find(a => a.id === copyDestParentId);
+    if (cached) {
+      copyDestParentLabel = cached.label;
+    } else {
+      try {
+        // GET /api/assets?parent_id=... returns siblings; use GET /api/assets/:id
+        // but decode the response carefully — it returns { asset, children, breadcrumb }
+        const d = await apiFetch(`/assets/${encodeURIComponent(copyDestParentId)}`);
+        copyDestParentLabel = d.asset?.label || copyDestParentId;
+      } catch { copyDestParentLabel = copyDestParentId; }
+    }
   }
   renderCopyDest();
   validateCopyForm();
