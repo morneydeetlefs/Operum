@@ -19,6 +19,8 @@
  * GET  /api/assets/:id                     single node + children + breadcrumb
  * PATCH /api/assets/:id                    update node fields
  * DELETE /api/assets/:id                  delete node (no children, no docs)
+ * GET  /api/assets/:id/subtree-count      count of nodes in subtree (incl. root)
+ * POST /api/assets/:id/copy               copy full subtree to new parent+suffix
  *
  * GET  /api/assets/:id/documents           list documents for a node
  * POST /api/assets/:id/documents           attach document to node
@@ -618,6 +620,154 @@ export default {
         await log(db, actor.sub, 'delete', `asset:${assetId}`, null, ip);
         return json({ ok: true });
       }
+    }
+
+    // ── GET /api/assets/:id/subtree-count ────────────────────────────────────
+    // Returns the total number of nodes in the subtree rooted at :id
+    // (including the root node itself). Used by the copy modal to show the
+    // user what they are about to copy before they confirm.
+    const subtreeCountMatch = path.match(/^\/api\/assets\/([^/]+)\/subtree-count$/);
+    if (subtreeCountMatch && method === 'GET') {
+      const assetId = decodeURIComponent(subtreeCountMatch[1]);
+      const root = await db.prepare(`SELECT id FROM assets WHERE id = ?`).bind(assetId).first();
+      if (!root) return err('Not found', 404, origin);
+
+      const result = await db.prepare(`
+        WITH RECURSIVE subtree AS (
+          SELECT id FROM assets WHERE id = ?
+          UNION ALL
+          SELECT a.id FROM assets a
+          JOIN subtree s ON a.parent_id = s.id
+        )
+        SELECT COUNT(*) as count FROM subtree
+      `).bind(assetId).first<{ count: number }>();
+
+      return json({ count: result?.count ?? 1 });
+    }
+
+    // ── POST /api/assets/:id/copy ─────────────────────────────────────────────
+    // Copies the full subtree rooted at :id to a new parent with a new suffix.
+    //
+    // Request body:
+    //   { new_suffix: string, dest_parent_id: string | null }
+    //
+    // Steps:
+    //   1. Fetch the full subtree via recursive CTE (root first, leaves last)
+    //   2. Validate dest_parent_id exists (if provided)
+    //   3. Calculate new root ID from dest_parent_id + new_suffix
+    //   4. Conflict-check every new ID before inserting anything
+    //   5. Insert all nodes in depth order inside a batch
+    //   6. Increment suffix_library use_count for the new suffix prefix
+    //   7. Log the operation
+    const assetCopyMatch = path.match(/^\/api\/assets\/([^/]+)\/copy$/);
+    if (assetCopyMatch && method === 'POST') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+
+      const assetId = decodeURIComponent(assetCopyMatch[1]);
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      const { new_suffix, dest_parent_id } = b;
+
+      if (!new_suffix || typeof new_suffix !== 'string' || !new_suffix.trim()) {
+        return err('new_suffix is required', 400, origin);
+      }
+
+      const newSuffix = (new_suffix as string).trim();
+
+      // Step 1 — fetch full subtree ordered by depth (root first)
+      const subtreeResult = await db.prepare(`
+        WITH RECURSIVE subtree AS (
+          SELECT *, 0 AS depth FROM assets WHERE id = ?
+          UNION ALL
+          SELECT a.*, s.depth + 1 FROM assets a
+          JOIN subtree s ON a.parent_id = s.id
+        )
+        SELECT * FROM subtree ORDER BY depth ASC
+      `).bind(assetId).all<AssetRow & { depth: number }>();
+
+      const subtree = subtreeResult.results;
+      if (!subtree.length) return err('Source asset not found', 404, origin);
+
+      const sourceRoot = subtree[0];
+      const sourceRootId = sourceRoot.id;
+
+      // Step 2 — validate destination parent
+      let destParentId: string | null = null;
+      if (dest_parent_id && typeof dest_parent_id === 'string' && dest_parent_id.trim()) {
+        destParentId = dest_parent_id.trim();
+        const destParent = await db.prepare(`SELECT id FROM assets WHERE id = ?`).bind(destParentId).first();
+        if (!destParent) return err('Destination parent not found', 404, origin);
+      }
+
+      // Step 3 — calculate new root ID
+      const newRootId = destParentId ? `${destParentId} ${newSuffix}` : newSuffix;
+
+      // Step 4 — conflict check every new ID before inserting anything
+      // Build the full set of new IDs by replacing the source root prefix
+      const newIds: string[] = subtree.map(node => {
+        return node.id.replace(sourceRootId, newRootId);
+      });
+
+      for (const newId of newIds) {
+        const conflict = await db.prepare(`SELECT id FROM assets WHERE id = ?`).bind(newId).first();
+        if (conflict) return err(`ID "${newId}" already exists — choose a different suffix`, 409, origin);
+      }
+
+      // Step 5 — insert all nodes in depth order
+      // D1 does not support true transactions via the Workers API, so we use
+      // db.batch() to execute all inserts atomically.
+      const now = new Date().toISOString();
+      const stmts = subtree.map((node, i) => {
+        const newId       = newIds[i];
+        const newParentId = node.parent_id
+          ? node.parent_id.replace(sourceRootId, newRootId)
+          : destParentId;  // root node's parent becomes dest_parent_id
+        const newNodeSuffix = node.id === sourceRootId
+          ? newSuffix
+          : node.suffix;   // children keep their own suffixes
+
+        return db.prepare(`
+          INSERT INTO assets (
+            id, parent_id, suffix, label, node_type, criticality,
+            is_measurable, hazards, isolation_pts,
+            plant_area, machine_type, manufacturer, model,
+            serial_no, install_date, created_by, created_at, updated_at
+          ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        `).bind(
+          newId,
+          newParentId,
+          newNodeSuffix,
+          node.label,
+          node.node_type,
+          node.criticality,
+          node.is_measurable,
+          node.hazards,
+          node.isolation_pts,
+          node.plant_area    ?? null,
+          node.machine_type  ?? null,
+          node.manufacturer  ?? null,
+          node.model         ?? null,
+          node.serial_no     ?? null,
+          node.install_date  ?? null,
+          actor.sub,
+          now,
+          now
+        );
+      });
+
+      await db.batch(stmts);
+
+      // Step 6 — increment use_count for the new suffix prefix
+      const prefixMatch = newSuffix.match(/^([A-Z]+)/i);
+      if (prefixMatch) {
+        await db.prepare(
+          `UPDATE suffix_library SET use_count = use_count + 1 WHERE prefix = ?`
+        ).bind(prefixMatch[1].toUpperCase()).run();
+      }
+
+      // Step 7 — log
+      await log(db, actor.sub, 'copy', `asset:${sourceRootId}→${newRootId}`, { copied_count: subtree.length }, ip);
+
+      return json({ root_id: newRootId, copied_count: subtree.length }, 201);
     }
 
     // ── GET /api/assets/:id/documents ─────────────────────────────────────────

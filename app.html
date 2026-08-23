@@ -877,7 +877,84 @@ body::before {
     <div class="detail-actions" id="detailActions"></div>
     <div class="detail-edit-actions">
       <button class="btn btn-outline" style="font-size:.8rem;" onclick="closeAssetDetail(); openEditAsset()">Edit</button>
+      <button class="btn btn-outline" style="font-size:.8rem;" id="copySubtreeBtn" onclick="closeAssetDetail(); openCopyModal()">Copy Subtree</button>
       <button class="btn btn-danger"  style="font-size:.8rem;" onclick="closeAssetDetail(); deleteAsset()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Copy Subtree modal ──────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="copyModal" onclick="if(event.target===this)closeCopyModal()">
+  <div class="modal-sheet">
+    <div class="modal-title">Copy Subtree</div>
+
+    <!-- Source summary -->
+    <div style="background:var(--md-panel);border:1px solid var(--md-border);
+                border-radius:var(--md-radius);padding:10px 12px;margin-bottom:16px;">
+      <div style="font-family:var(--font-mono);font-size:.65rem;letter-spacing:.1em;
+                  text-transform:uppercase;color:var(--md-gold-dk);margin-bottom:4px;">Copying from</div>
+      <div style="font-weight:600;" id="copySourceName">—</div>
+      <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-muted);margin-top:2px;"
+           id="copySourceId">—</div>
+      <div style="font-size:.78rem;color:var(--md-muted);margin-top:6px;" id="copySubtreeSummary">
+        <span class="spin" style="display:inline-block;width:12px;height:12px;
+          border:2px solid var(--md-border);border-top-color:var(--md-gold);
+          border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;
+          margin-right:6px;"></span>Counting nodes…
+      </div>
+    </div>
+
+    <!-- New suffix -->
+    <div class="form-field" style="position:relative;">
+      <label class="form-label">New suffix <span class="form-required">*</span></label>
+      <input class="form-input" id="copyNewSuffix" placeholder="e.g. PMP-002"
+             autocomplete="off" spellcheck="false"/>
+      <div class="form-hint" id="copyIdPreview" style="color:var(--md-gold-dk);margin-top:6px;"></div>
+    </div>
+
+    <!-- Destination parent -->
+    <div class="form-field">
+      <label class="form-label">Destination parent</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <div style="flex:1;background:var(--md-panel);border:1px solid var(--md-border);
+                    border-radius:var(--md-radius);padding:9px 11px;
+                    font-size:.85rem;" id="copyDestLabel">Same parent</div>
+        <button class="btn btn-outline" style="font-size:.75rem;padding:8px 12px;white-space:nowrap;"
+                onclick="openParentPicker()">Change</button>
+        <button class="btn btn-outline" style="font-size:.75rem;padding:8px 10px;"
+                title="Reset to original parent" onclick="resetCopyDest()">✕</button>
+      </div>
+      <div style="font-family:var(--font-mono);font-size:.68rem;color:var(--md-muted);margin-top:4px;"
+           id="copyDestId"></div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-outline" onclick="closeCopyModal()">Cancel</button>
+      <button class="btn btn-gold" id="copyConfirmBtn" onclick="executeCopy()" disabled>Copy Subtree</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Parent picker (nested sheet inside copy flow) ──────────────────────── -->
+<div class="modal-backdrop" id="parentPickerModal" onclick="if(event.target===this)closeParentPicker()">
+  <div class="modal-sheet" style="max-height:75vh;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+      <div class="modal-title" style="margin-bottom:0;">Select Parent Node</div>
+      <button class="detail-sheet-close" onclick="closeParentPicker()">✕</button>
+    </div>
+    <div class="breadcrumb" id="pickerBreadcrumb" style="margin:0 -20px;padding:8px 20px;">
+      <span class="crumb-current">All Sites</span>
+    </div>
+    <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;
+                overflow-y:auto;max-height:calc(75vh - 120px);" id="pickerTree">
+      <div class="loader"><div class="spin"></div> Loading…</div>
+    </div>
+    <!-- Allow selecting root (no parent) -->
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--md-border);">
+      <button class="btn btn-outline" style="width:100%;font-size:.8rem;"
+              onclick="selectPickerNode(null, 'Root (no parent)')">
+        Use root — no parent
+      </button>
     </div>
   </div>
 </div>
@@ -1794,6 +1871,254 @@ async function deleteAsset() {
 
 function launchDiagnosticWand() {
   window.open(`${DW_URL}?operum_token=${encodeURIComponent(jwtToken)}`, '_blank');
+}
+
+// ─── Copy Subtree ─────────────────────────────────────────────────────────────
+
+let copySourceAsset   = null;   // the asset being copied
+let copyDestParentId  = null;   // null = same parent as source
+let copyDestParentLabel = null;
+let pickerStack       = [];     // breadcrumb stack inside parent picker
+
+async function openCopyModal() {
+  if (!selectedAsset) return;
+  copySourceAsset     = selectedAsset;
+  copyDestParentId    = selectedAsset.parent_id || null;
+  copyDestParentLabel = null;   // will be resolved below
+
+  $('copySourceName').textContent = copySourceAsset.label;
+  $('copySourceId').textContent   = copySourceAsset.id;
+  $('copySubtreeSummary').innerHTML = `
+    <span class="spin" style="display:inline-block;width:12px;height:12px;
+      border:2px solid var(--md-border);border-top-color:var(--md-gold);
+      border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;
+      margin-right:6px;"></span>Counting nodes…`;
+
+  // Pre-fill suffix with an incremented version of the source suffix
+  const srcSuffix = copySourceAsset.suffix || '';
+  $('copyNewSuffix').value = incrementSuffix(srcSuffix);
+  updateCopyIdPreview();
+
+  // Resolve parent label for display
+  if (copyDestParentId) {
+    try {
+      const d = await apiFetch(`/assets/${encodeURIComponent(copyDestParentId)}`);
+      copyDestParentLabel = d.asset?.label || copyDestParentId;
+    } catch { copyDestParentLabel = copyDestParentId; }
+  }
+  renderCopyDest();
+  validateCopyForm();
+
+  $('copyModal').classList.add('open');
+
+  // Fetch subtree count (Option 1 — one API call on open)
+  try {
+    const d = await apiFetch(`/assets/${encodeURIComponent(copySourceAsset.id)}/subtree-count`);
+    const count = d.count ?? 1;
+    const childCount = count - 1;
+    $('copySubtreeSummary').textContent = childCount > 0
+      ? `Copies 1 node + ${childCount} child${childCount !== 1 ? 'ren' : ''}`
+      : 'Copies 1 node (no children)';
+  } catch {
+    $('copySubtreeSummary').textContent = 'Could not count children — copy will still work correctly.';
+  }
+}
+
+function incrementSuffix(suffix) {
+  // If suffix ends in a number, increment it. Otherwise append -2.
+  // e.g. PMP-001 → PMP-002, GB-1 → GB-2, PUMP → PUMP-2
+  const m = suffix.match(/^(.*?)(\d+)$/);
+  if (m) {
+    const padded = String(Number(m[2]) + 1).padStart(m[2].length, '0');
+    return `${m[1]}${padded}`;
+  }
+  return `${suffix}-2`;
+}
+
+$('copyNewSuffix').addEventListener('input', () => {
+  updateCopyIdPreview();
+  validateCopyForm();
+});
+
+function updateCopyIdPreview() {
+  const suffix = $('copyNewSuffix').value.trim();
+  if (!suffix) { $('copyIdPreview').textContent = ''; return; }
+  const newId = copyDestParentId ? `${copyDestParentId} ${suffix}` : suffix;
+  $('copyIdPreview').textContent = `New root ID: ${newId}`;
+}
+
+function renderCopyDest() {
+  if (!copyDestParentId) {
+    $('copyDestLabel').textContent = 'Root (no parent)';
+    $('copyDestId').textContent    = '';
+  } else {
+    $('copyDestLabel').textContent = copyDestParentLabel || copyDestParentId;
+    $('copyDestId').textContent    = copyDestParentId;
+  }
+  updateCopyIdPreview();
+}
+
+function resetCopyDest() {
+  copyDestParentId    = copySourceAsset?.parent_id || null;
+  copyDestParentLabel = null;
+  renderCopyDest();
+  validateCopyForm();
+}
+
+function validateCopyForm() {
+  const suffix = $('copyNewSuffix').value.trim();
+  $('copyConfirmBtn').disabled = !suffix;
+}
+
+function closeCopyModal() {
+  $('copyModal').classList.remove('open');
+  copySourceAsset = null;
+}
+
+async function executeCopy() {
+  const suffix = $('copyNewSuffix').value.trim();
+  if (!suffix || !copySourceAsset) return;
+
+  $('copyConfirmBtn').disabled = true;
+  $('copyConfirmBtn').textContent = 'Copying…';
+
+  try {
+    const d = await apiFetch(`/assets/${encodeURIComponent(copySourceAsset.id)}/copy`, {
+      method: 'POST',
+      body: JSON.stringify({
+        new_suffix: suffix,
+        dest_parent_id: copyDestParentId || null,
+      }),
+    });
+    const count = d.copied_count ?? 1;
+    showToast(`Copied — ${count} node${count !== 1 ? 's' : ''} created`);
+    closeCopyModal();
+    invalidateQsCache();
+    // Navigate to the destination parent so the user sees the new copy
+    treeStack = [];
+    currentParentId = copyDestParentId || null;
+    loadAssetTree(copyDestParentId || null);
+    switchModule('register');
+    showSubView('assets');
+  } catch (e) {
+    showToast(e.message, 'error');
+    $('copyConfirmBtn').disabled = false;
+    $('copyConfirmBtn').textContent = 'Copy Subtree';
+  }
+}
+
+// ─── Parent picker ────────────────────────────────────────────────────────────
+
+function openParentPicker() {
+  pickerStack = [];
+  loadPickerTree(null);
+  $('parentPickerModal').classList.add('open');
+}
+
+function closeParentPicker() {
+  $('parentPickerModal').classList.remove('open');
+}
+
+async function loadPickerTree(parentId) {
+  $('pickerTree').innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
+  renderPickerBreadcrumb();
+  try {
+    const qs   = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
+    const data = await apiFetch(`/assets${qs}`);
+    const assets = data.assets || [];
+    $('pickerTree').innerHTML = '';
+
+    if (!assets.length) {
+      $('pickerTree').innerHTML = '<div class="empty"><div class="empty-sub">No child nodes here.</div></div>';
+      return;
+    }
+
+    assets.forEach(a => {
+      // Do not allow selecting the source asset itself or any of its descendants
+      // as the destination parent — that would create a circular reference.
+      // Simple guard: block if the candidate ID starts with the source root ID.
+      const isSourceOrDescendant = copySourceAsset &&
+        (a.id === copySourceAsset.id || a.id.startsWith(copySourceAsset.id + ' '));
+
+      const row = document.createElement('div');
+      row.className = 'card-row';
+      if (isSourceOrDescendant) {
+        row.style.opacity = '.35';
+        row.style.cursor  = 'not-allowed';
+        row.title = 'Cannot copy an asset into itself or its own descendants';
+      }
+      row.innerHTML = `
+        <div>
+          <div class="card-row-name">${a.label}</div>
+          <div class="card-row-sub" style="font-family:var(--font-mono);font-size:.7rem;">${a.id}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button class="tree-info-btn" style="font-size:.65rem;padding:3px 8px;"
+                  ${isSourceOrDescendant ? 'disabled' : ''}
+                  onclick="event.stopPropagation();selectPickerNode('${a.id}','${a.label.replace(/'/g,"\\'")}')">
+            Select
+          </button>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               style="width:14px;height:14px;color:var(--md-muted);flex-shrink:0;">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>`;
+
+      if (!isSourceOrDescendant) {
+        row.addEventListener('click', e => {
+          if (e.target.closest('.tree-info-btn')) return;
+          pickerStack.push({ id: a.id, label: a.label });
+          loadPickerTree(a.id);
+        });
+      }
+      $('pickerTree').appendChild(row);
+    });
+  } catch (e) {
+    $('pickerTree').innerHTML = `<div class="empty" style="color:var(--md-danger)">Error: ${e.message}</div>`;
+  }
+}
+
+function renderPickerBreadcrumb() {
+  const bc = $('pickerBreadcrumb');
+  bc.innerHTML = '';
+
+  const root = document.createElement('span');
+  if (!pickerStack.length) {
+    root.className   = 'crumb-current';
+    root.textContent = 'All Sites';
+  } else {
+    root.className   = 'crumb';
+    root.textContent = 'All Sites';
+    root.addEventListener('click', () => { pickerStack = []; loadPickerTree(null); });
+  }
+  bc.appendChild(root);
+
+  pickerStack.forEach((item, i) => {
+    const sep = document.createElement('span');
+    sep.className = 'crumb-sep'; sep.textContent = ' › ';
+    bc.appendChild(sep);
+    const crumb = document.createElement('span');
+    if (i === pickerStack.length - 1) {
+      crumb.className   = 'crumb-current';
+      crumb.textContent = item.label;
+    } else {
+      crumb.className   = 'crumb';
+      crumb.textContent = item.label;
+      crumb.addEventListener('click', () => {
+        pickerStack = pickerStack.slice(0, i + 1);
+        loadPickerTree(pickerStack[pickerStack.length - 1].id);
+      });
+    }
+    bc.appendChild(crumb);
+  });
+}
+
+function selectPickerNode(id, label) {
+  copyDestParentId    = id;
+  copyDestParentLabel = label;
+  closeParentPicker();
+  renderCopyDest();
+  validateCopyForm();
 }
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
