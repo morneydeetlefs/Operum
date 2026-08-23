@@ -122,7 +122,7 @@ body::before {
 }
 .login-error.show { display: block; }
 
-/* ── App shell (hidden until logged in) ─────────────────────────────────────── */
+/* ── App shell ─────────────────────────────────────────────────────────────── */
 #appShell { display: none; flex-direction: column; height: 100vh; }
 #appShell.visible { display: flex; }
 
@@ -132,16 +132,32 @@ body::before {
   background: var(--md-surface);
   border-bottom: 1px solid var(--md-border);
   display: flex; align-items: center;
-  padding: 0 16px; gap: 12px;
+  padding: 0 12px 0 16px; gap: 10px;
   position: relative; z-index: 10; flex-shrink: 0;
 }
 .header-brand {
   font-family: var(--font-brand);
   font-size: 1.1rem; font-weight: 600; letter-spacing: .14em;
-  color: var(--md-gold-lt); flex: 1;
+  color: var(--md-gold-lt); flex-shrink: 0;
 }
+
+/* ── [E] Area scope selector ────────────────────────────────────────────────── */
+#headerAreaSelect {
+  flex: 1;
+  background: var(--md-panel);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  color: var(--md-muted);
+  font-family: var(--font-mono);
+  font-size: .65rem; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 8px; height: 28px;
+  outline: none; cursor: pointer; transition: border-color .2s;
+  max-width: 160px;
+}
+#headerAreaSelect:focus { border-color: var(--md-gold-dk); color: var(--md-cream); }
+
 .header-user {
-  display: flex; flex-direction: column; align-items: flex-end;
+  display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0;
 }
 .header-user-name {
   font-size: .75rem; font-weight: 600; color: var(--md-cream);
@@ -155,7 +171,7 @@ body::before {
   background: none; border: 1px solid var(--md-border);
   border-radius: var(--md-radius); padding: 6px 10px;
   color: var(--md-muted); font-size: .75rem; cursor: pointer;
-  transition: all .2s;
+  transition: all .2s; flex-shrink: 0;
 }
 .header-logout:hover { color: var(--md-danger); border-color: var(--md-danger); }
 
@@ -187,6 +203,7 @@ body::before {
   padding: 4px 6px; border-radius: var(--md-radius);
   -webkit-tap-highlight-color: transparent;
   transition: background .15s;
+  position: relative;
 }
 .nav-btn:active { background: var(--md-panel); }
 .nav-btn svg { width: 20px; height: 20px; color: var(--md-muted); transition: color .2s; }
@@ -343,8 +360,20 @@ body::before {
 .tree-node-label { font-weight: 600; font-size: .9rem; }
 .tree-node-sub { font-size: .72rem; color: var(--md-muted); margin-top: 1px; }
 .tree-node-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+/* [B] Info button on tree node */
+.tree-info-btn {
+  background: transparent; border: 1px solid var(--md-border-lt);
+  border-radius: var(--md-radius); color: var(--md-muted);
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .04em;
+  padding: 3px 7px; cursor: pointer; transition: all .2s; white-space: nowrap;
+}
+.tree-info-btn:hover { color: var(--md-gold-lt); border-color: var(--md-gold-dk); }
+
 .tree-chevron { color: var(--md-muted); display: flex; align-items: center; }
 .tree-chevron svg { width: 16px; height: 16px; }
+.tree-chevron.dimmed { opacity: .25; cursor: default; pointer-events: none; }
+
 .tree-add-btn {
   width: 100%; padding: 10px;
   background: transparent; border: 1px dashed var(--md-border-lt);
@@ -355,22 +384,98 @@ body::before {
 .tree-add-btn:hover { color: var(--md-gold-lt); border-color: var(--md-gold-dk); }
 .tree-add-btn svg { width: 16px; height: 16px; }
 
-/* ── Detail panel ──────────────────────────────────────────────────────────── */
-.detail-panel {
-  margin: 12px 16px;
-  background: var(--md-surface); border: 1px solid var(--md-border-lt);
-  border-radius: var(--md-radius); padding: 16px; display: none;
+/* ── [C] Quick-jump search bar ─────────────────────────────────────────────── */
+.quick-search-bar {
+  padding: 8px 16px;
+  background: var(--md-surface);
+  border-bottom: 1px solid var(--md-border);
 }
-.detail-panel.visible { display: block; }
-.detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-.detail-name { font-size: 1rem; font-weight: 700; }
-.detail-id { font-family: var(--font-mono); font-size: .72rem; color: var(--md-gold-dk); margin-top: 2px; }
-.detail-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.quick-search-wrap {
+  position: relative;
+}
+.quick-search-wrap svg {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  width: 14px; height: 14px; color: var(--md-muted); pointer-events: none;
+}
+#assetQuickSearch {
+  width: 100%;
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); color: var(--md-cream);
+  font-family: var(--font-ui); font-size: .82rem;
+  padding: 8px 11px 8px 32px;
+  outline: none; transition: border-color .2s;
+}
+#assetQuickSearch:focus { border-color: var(--md-gold-dk); }
+#assetQuickSearch::placeholder { color: var(--md-muted); }
+
+/* Quick-search results list */
+#quickSearchResults {
+  display: none;
+  padding: 6px 16px 10px;
+  flex-direction: column; gap: 5px;
+}
+#quickSearchResults.visible { display: flex; }
+.qs-result {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px;
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); cursor: pointer; transition: border-color .2s;
+}
+.qs-result:hover { border-color: var(--md-gold-dk); }
+.qs-result-id { font-family: var(--font-mono); font-size: .7rem; color: var(--md-gold-dk); }
+.qs-result-label { font-weight: 600; font-size: .85rem; }
+.qs-result-sub { font-size: .72rem; color: var(--md-muted); }
+.qs-no-results { padding: 10px 12px; color: var(--md-muted); font-size: .82rem; }
+
+/* ── [D] Asset detail bottom sheet ─────────────────────────────────────────── */
+/* Uses existing .modal-backdrop / .modal-sheet pattern */
+.detail-sheet-header {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 14px;
+}
+.detail-sheet-name {
+  font-family: var(--font-brand); font-size: 1rem; font-weight: 600;
+  color: var(--md-gold-lt); letter-spacing: .06em;
+}
+.detail-sheet-id {
+  font-family: var(--font-mono); font-size: .72rem; color: var(--md-gold-dk); margin-top: 3px;
+}
+.detail-sheet-close {
+  background: none; border: none; color: var(--md-muted);
+  cursor: pointer; padding: 4px; line-height: 1;
+  font-size: 1.1rem; transition: color .2s;
+}
+.detail-sheet-close:hover { color: var(--md-danger); }
+.detail-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .detail-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--md-border); }
 .detail-section-title {
   font-family: var(--font-mono); font-size: .65rem;
   letter-spacing: .2em; text-transform: uppercase; color: var(--md-gold-dk); margin-bottom: 8px;
+}
+.detail-edit-actions {
+  display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end;
+  padding-top: 14px; border-top: 1px solid var(--md-border);
+}
+
+/* ── [A] Dashboard module ──────────────────────────────────────────────────── */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px; padding: 16px;
+}
+.dash-kpi {
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); padding: 14px 12px;
+  transition: border-color .2s;
+}
+.dash-kpi-label {
+  font-family: var(--font-mono); font-size: .6rem;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--md-muted);
+}
+.dash-kpi-value {
+  font-family: var(--font-brand); font-size: 1.6rem; font-weight: 600;
+  margin-top: 6px; line-height: 1;
 }
 
 /* ── Stub module ──────────────────────────────────────────────────────────── */
@@ -467,9 +572,12 @@ body::before {
 <!-- ── App shell ───────────────────────────────────────────────────────────── -->
 <div id="appShell">
 
-  <!-- Header -->
+  <!-- [E] Header with area scope selector -->
   <header id="appHeader">
     <div class="header-brand">✦ OPERUM</div>
+    <select id="headerAreaSelect" title="Filter by area">
+      <option value="all">All Areas</option>
+    </select>
     <div class="header-user">
       <div class="header-user-name" id="headerName">—</div>
       <div class="header-user-role" id="headerRole">—</div>
@@ -480,8 +588,51 @@ body::before {
   <!-- View port -->
   <div id="viewPort">
 
+    <!-- ── [A] DASHBOARD module ────────────────────────────────────────────── -->
+    <div class="module-view" id="modDashboard">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Overview</div>
+          <div class="section-sub" id="dashAreaLabel">All plant areas</div>
+        </div>
+      </div>
+
+      <!-- KPI strip -->
+      <div class="dash-kpi-grid">
+        <div class="dash-kpi" style="border-left:3px solid var(--md-danger);">
+          <div class="dash-kpi-label">Critical</div>
+          <div class="dash-kpi-value" id="dashCritCount" style="color:var(--md-danger);">—</div>
+        </div>
+        <div class="dash-kpi" style="border-left:3px solid var(--md-warning);">
+          <div class="dash-kpi-label">High</div>
+          <div class="dash-kpi-value" id="dashHighCount" style="color:var(--md-warning);">—</div>
+        </div>
+        <div class="dash-kpi" style="border-left:3px solid var(--md-gold);">
+          <div class="dash-kpi-label">Monitored</div>
+          <div class="dash-kpi-value" id="dashCmCount" style="color:var(--md-gold);">—</div>
+        </div>
+        <div class="dash-kpi" style="border-left:3px solid var(--md-info);">
+          <div class="dash-kpi-label">Total Assets</div>
+          <div class="dash-kpi-value" id="dashTotalCount" style="color:var(--md-info);">—</div>
+        </div>
+      </div>
+
+      <!-- Priority assets list -->
+      <div class="section-header" style="padding-top:12px;">
+        <div>
+          <div class="section-title" style="font-size:.85rem;">Priority Assets</div>
+          <div class="section-sub">Critical and high-criticality nodes</div>
+        </div>
+        <button class="btn btn-outline" style="font-size:.72rem;padding:5px 10px;"
+                onclick="switchModule('register'); showSubView('assets');">View All ›</button>
+      </div>
+      <div class="card-list" id="dashPriorityList">
+        <div class="loader"><div class="spin"></div> Loading…</div>
+      </div>
+    </div>
+
     <!-- ── REGISTER module ──────────────────────────────────────────────────── -->
-    <div class="module-view active" id="modRegister">
+    <div class="module-view" id="modRegister">
 
       <!-- Sub-nav: Employees | Assets -->
       <div style="display:flex; border-bottom:1px solid var(--md-border);">
@@ -519,21 +670,20 @@ body::before {
           <button class="btn btn-gold" onclick="openAddAsset(currentParentId)">+ Add</button>
         </div>
 
-        <!-- Detail card for selected asset -->
-        <div class="detail-panel" id="assetDetail">
-          <div class="detail-header">
-            <div>
-              <div class="detail-name" id="detailName">—</div>
-              <div class="detail-id" id="detailId">—</div>
-            </div>
-            <div style="display:flex;gap:6px;">
-              <button class="btn btn-outline" style="padding:6px 10px;font-size:.75rem;" onclick="openEditAsset()">Edit</button>
-              <button class="btn btn-danger"  style="padding:6px 10px;font-size:.75rem;" onclick="deleteAsset()">Delete</button>
-            </div>
+        <!-- [C] Quick-jump search bar -->
+        <div class="quick-search-bar">
+          <div class="quick-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="assetQuickSearch" type="search"
+                   placeholder="Search by tag or label (e.g. PMP-007)…"
+                   autocomplete="off" spellcheck="false"/>
           </div>
-          <div class="detail-meta" id="detailMeta"></div>
-          <div class="detail-actions" id="detailActions"></div>
         </div>
+
+        <!-- Quick search results (replaces tree while searching) -->
+        <div id="quickSearchResults"></div>
 
         <div class="breadcrumb" id="assetBreadcrumb">
           <span class="crumb-current">All Sites</span>
@@ -638,7 +788,7 @@ body::before {
 <div class="modal-backdrop" id="assetModal" onclick="if(event.target===this)closeAssetModal()">
   <div class="modal-sheet">
     <div class="modal-title" id="assetModalTitle">Register Asset Node</div>
-    <input type="hidden" id="assetModalMode"/>   <!-- 'add' | 'edit' -->
+    <input type="hidden" id="assetModalMode"/>
     <input type="hidden" id="assetModalParentId"/>
     <input type="hidden" id="assetModalEditId"/>
 
@@ -646,7 +796,6 @@ body::before {
       <label class="form-label">ID Suffix <span class="form-required">*</span></label>
       <input class="form-input" id="aNodeSuffix" placeholder="e.g. GB-1, PMP-007"
              autocomplete="off" spellcheck="false"/>
-      <!-- Suggestion dropdown -->
       <div id="suffixDropdown" style="
         display:none; position:absolute; top:100%; left:0; right:0; z-index:100;
         background:var(--md-panel); border:1px solid var(--md-border-lt);
@@ -714,6 +863,25 @@ body::before {
   </div>
 </div>
 
+<!-- ── [D] Asset detail bottom sheet ──────────────────────────────────────── -->
+<div class="modal-backdrop" id="assetDetailModal" onclick="if(event.target===this)closeAssetDetail()">
+  <div class="modal-sheet">
+    <div class="detail-sheet-header">
+      <div>
+        <div class="detail-sheet-name" id="detailName">—</div>
+        <div class="detail-sheet-id" id="detailId">—</div>
+      </div>
+      <button class="detail-sheet-close" onclick="closeAssetDetail()" aria-label="Close">✕</button>
+    </div>
+    <div class="detail-meta" id="detailMeta"></div>
+    <div class="detail-actions" id="detailActions"></div>
+    <div class="detail-edit-actions">
+      <button class="btn btn-outline" style="font-size:.8rem;" onclick="closeAssetDetail(); openEditAsset()">Edit</button>
+      <button class="btn btn-danger"  style="font-size:.8rem;" onclick="closeAssetDetail(); deleteAsset()">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Toast ─────────────────────────────────────────────────────────────────── -->
 <div id="toast"></div>
 
@@ -726,18 +894,30 @@ const DW_URL   = 'https://diagnostic-wand.pages.dev';
 
 // ─── State ───────────────────────────────────────────────────────────────────
 let jwtToken    = localStorage.getItem('operum_token') || null;
-let actor       = null;   // decoded JWT payload
-let currentMod  = 'register';
+let actor       = null;
+let currentMod  = 'dashboard';
 let currentSubView = 'employees';
-let treeStack   = [];     // [{id, label}]
+let treeStack   = [];
 let currentParentId = null;
-let selectedAsset = null;
+let selectedAsset   = null;
+let allAssetsCache  = [];   // flat cache used by quick-search and dashboard
+let activeAreaFilter = 'all';
 
 const $ = id => document.getElementById(id);
 
 // ─── Module registry ─────────────────────────────────────────────────────────
 // To add a module: push one entry here. Nothing else changes.
 const MODULES = [
+  {
+    id: 'dashboard',
+    label: 'Overview',
+    viewId: 'modDashboard',
+    roles: ['admin','supervisor','safety_manager','maintenance_planner','artisan','operator','read_only','contractor'],
+    icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/>
+      <rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+    </svg>`,
+  },
   {
     id: 'register',
     label: 'Register',
@@ -813,7 +993,6 @@ async function apiFetch(path, opts = {}) {
   return body;
 }
 
-// Boot: check for saved token
 window.addEventListener('DOMContentLoaded', () => {
   if (jwtToken) {
     const p = parseJWT(jwtToken);
@@ -825,7 +1004,6 @@ window.addEventListener('DOMContentLoaded', () => {
     localStorage.removeItem('operum_token');
     jwtToken = null;
   }
-  // Dev shortcut — fetch a token automatically
   fetchDevToken();
 });
 
@@ -837,7 +1015,6 @@ async function fetchDevToken() {
     localStorage.setItem('operum_token', jwtToken);
     bootApp();
   } catch {
-    // Show login screen for real credentials
     $('loginScreen').style.display = 'flex';
   }
 }
@@ -884,9 +1061,45 @@ function bootApp() {
   $('appShell').classList.add('visible');
   $('headerName').textContent = actor.name;
   $('headerRole').textContent = roleLabel(actor.role);
+  buildAreaSelect();
   buildNav();
-  switchModule('register');
+  switchModule('dashboard');
 }
+
+// ─── [E] Area scope selector ──────────────────────────────────────────────────
+
+function buildAreaSelect() {
+  const sel = $('headerAreaSelect');
+  // Keep the default "All Areas" option already in HTML.
+  // Populate area options from JWT if present.
+  const areas = actor.areas || [];
+  if (areas.length && !(areas.length === 1 && areas[0] === 'all')) {
+    areas.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a;
+      opt.textContent = a.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      sel.appendChild(opt);
+    });
+  } else {
+    // No specific areas: hide the selector — user has full access
+    sel.style.display = 'none';
+  }
+}
+
+$('headerAreaSelect').addEventListener('change', function () {
+  activeAreaFilter = this.value;
+  // Refresh whatever is currently visible
+  if (currentMod === 'dashboard') loadDashboard();
+  if (currentMod === 'register' && currentSubView === 'assets') {
+    treeStack = [];
+    loadAssetTree(null);
+  }
+  // Update area label on dashboard
+  $('dashAreaLabel').textContent =
+    activeAreaFilter === 'all'
+      ? 'All plant areas'
+      : activeAreaFilter.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+});
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
@@ -911,7 +1124,7 @@ function switchModule(modId) {
   const m = MODULES.find(x => x.id === modId);
   if (m) $(m.viewId).classList.add('active');
 
-  // Load data on first switch to each module
+  if (modId === 'dashboard') loadDashboard();
   if (modId === 'register') {
     if (currentSubView === 'employees') loadEmployees();
     else loadAssetTree(currentParentId);
@@ -930,6 +1143,95 @@ function showSubView(view) {
   $('subAssetBtn').style.color             = view === 'assets' ? 'var(--md-gold)' : 'var(--md-muted)';
   if (view === 'employees') loadEmployees();
   if (view === 'assets')    loadAssetTree(currentParentId);
+}
+
+// ─── [A] Dashboard ────────────────────────────────────────────────────────────
+
+async function loadDashboard() {
+  $('dashPriorityList').innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
+  try {
+    // Fetch all top-level assets; walk tree for a flat picture.
+    // For now: fetch root, then fetch each child level up to depth 2.
+    // Replace with a dedicated /api/assets/all endpoint when available.
+    const data = await apiFetch('/assets');
+    const root = data.assets || [];
+
+    // Collect all descendants (two more levels) to build a richer picture.
+    let all = [...root];
+    await Promise.all(root.map(async a => {
+      try {
+        const d = await apiFetch(`/assets?parent_id=${encodeURIComponent(a.id)}`);
+        const children = d.assets || [];
+        all = all.concat(children);
+        await Promise.all(children.map(async c => {
+          try {
+            const d2 = await apiFetch(`/assets?parent_id=${encodeURIComponent(c.id)}`);
+            all = all.concat(d2.assets || []);
+          } catch { /* ignore */ }
+        }));
+      } catch { /* ignore */ }
+    }));
+
+    // Apply area filter
+    const filtered = activeAreaFilter === 'all'
+      ? all
+      : all.filter(a => (a.plant_area || '').toLowerCase().replace(/\s+/g,'_') === activeAreaFilter);
+
+    allAssetsCache = filtered;
+
+    // KPIs
+    const critCount = filtered.filter(a => a.criticality === 'critical').length;
+    const highCount = filtered.filter(a => a.criticality === 'high').length;
+    const cmCount   = filtered.filter(a => a.is_measurable).length;
+    $('dashCritCount').textContent  = critCount;
+    $('dashHighCount').textContent  = highCount;
+    $('dashCmCount').textContent    = cmCount;
+    $('dashTotalCount').textContent = filtered.length;
+
+    // Priority list
+    const priority = filtered
+      .filter(a => a.criticality === 'critical' || a.criticality === 'high')
+      .sort((a, b) => (a.criticality === 'critical' ? 0 : 1) - (b.criticality === 'critical' ? 0 : 1));
+
+    const list = $('dashPriorityList');
+    if (!priority.length) {
+      list.innerHTML = '<div class="empty"><div class="empty-title">No critical or high assets</div><div class="empty-sub">Register assets and set criticality.</div></div>';
+      return;
+    }
+    list.innerHTML = '';
+    priority.slice(0, 20).forEach(a => {
+      const critClass = a.criticality === 'critical' ? 'badge-critical' : 'badge-high';
+      const row = document.createElement('div');
+      row.className = 'card-row';
+      row.innerHTML = `
+        <div>
+          <div class="card-row-name">${a.label}</div>
+          <div class="card-row-sub">${a.id}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
+        </div>
+        <div class="card-row-right">
+          <span class="badge ${critClass}">${a.criticality}</span>
+          ${a.is_measurable ? '<span class="badge badge-artisan">CM</span>' : ''}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               style="width:14px;height:14px;color:var(--md-muted)">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </div>`;
+      row.addEventListener('click', () => {
+        // Deep-link into asset register
+        switchModule('register');
+        showSubView('assets');
+        // Rebuild treeStack for this asset's ancestry (best-effort via id parsing)
+        treeStack = [];
+        currentParentId = a.parent_id || null;
+        loadAssetTree(a.parent_id || null);
+        // Open the detail sheet after tree loads
+        setTimeout(() => openAssetDetail(a), 400);
+      });
+      list.appendChild(row);
+    });
+  } catch (e) {
+    $('dashPriorityList').innerHTML = `<div class="empty" style="color:var(--md-danger)">Error: ${e.message}</div>`;
+  }
 }
 
 // ─── Employees ───────────────────────────────────────────────────────────────
@@ -958,7 +1260,10 @@ async function loadEmployees() {
         <div class="card-row-right">
           <span class="badge ${roleBadgeClass(e.role)}">${roleLabel(e.role)}</span>
           ${!e.active ? '<span class="badge badge-other">Inactive</span>' : ''}
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;color:var(--md-muted)"><polyline points="9 18 15 12 9 6"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               style="width:14px;height:14px;color:var(--md-muted)">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </div>`;
       if (actor.role === 'admin') {
         row.style.cursor = 'pointer';
@@ -970,11 +1275,6 @@ async function loadEmployees() {
     $('empList').innerHTML = `<div class="empty empty-title" style="color:var(--md-danger)">Error: ${e.message}</div>`;
   }
 }
-
-// Hide Add button for non-admins
-document.addEventListener('DOMContentLoaded', () => {
-  // Will be called after bootApp sets actor
-});
 
 function openAddEmployee() {
   $('empModalTitle').textContent = 'Add Employee';
@@ -998,7 +1298,7 @@ function openEditEmployee(emp) {
   $('empPhone').value     = emp.phone || '';
   $('empRole').value      = emp.role;
   $('empAreas').value     = JSON.parse(emp.areas || '[]').join(', ');
-  $('empId').disabled     = true; // ID is immutable
+  $('empId').disabled     = true;
   $('empModal').classList.add('open');
 }
 
@@ -1039,13 +1339,16 @@ async function saveEmployee() {
 
 async function loadAssetTree(parentId = null) {
   currentParentId = parentId;
-  $('assetDetail').classList.remove('visible');
-  selectedAsset = null;
+  clearQuickSearch();
   $('assetTree').innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
   renderBreadcrumb();
 
   try {
-    const qs   = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
+    let qs = parentId ? `?parent_id=${encodeURIComponent(parentId)}` : '';
+    // Apply area filter at root level only
+    if (!parentId && activeAreaFilter !== 'all') {
+      qs = `?plant_area=${encodeURIComponent(activeAreaFilter)}`;
+    }
     const data = await apiFetch(`/assets${qs}`);
     const assets = data.assets || [];
 
@@ -1057,8 +1360,11 @@ async function loadAssetTree(parentId = null) {
 
     assets.forEach(a => {
       const critClass = { critical:'badge-critical', high:'badge-high', medium:'badge-medium', low:'badge-low' }[a.criticality] || 'badge-other';
+      const hasChildren = a.child_count > 0; // Worker must return child_count; fall back gracefully
       const node = document.createElement('div');
       node.className = `tree-node${a.is_measurable ? ' measurable' : ''}`;
+
+      // [B] Row taps drill into children. Info button opens the detail sheet.
       node.innerHTML = `
         <div class="tree-node-info">
           <div class="tree-node-id">${a.id}</div>
@@ -1068,18 +1374,26 @@ async function loadAssetTree(parentId = null) {
         <div class="tree-node-right">
           <span class="badge ${critClass}">${a.criticality}</span>
           ${a.is_measurable ? '<span class="badge badge-artisan" style="font-size:.6rem;">CM</span>' : ''}
-          <div class="tree-chevron" title="View children">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+          <button class="tree-info-btn" title="View details">Info</button>
+          <div class="tree-chevron${hasChildren === false ? ' dimmed' : ''}" title="${hasChildren === false ? 'No children' : 'View children'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                 stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </div>
         </div>`;
 
+      // Info button opens detail sheet without navigating
+      node.querySelector('.tree-info-btn').addEventListener('click', e => {
+        e.stopPropagation();
+        openAssetDetail(a);
+      });
+
+      // Row tap: drill down (chevron click also triggers this via event bubbling)
       node.addEventListener('click', e => {
-        if (e.target.closest('.tree-chevron')) {
-          treeStack.push({ id: a.id, label: a.label });
-          loadAssetTree(a.id);
-          return;
-        }
-        selectAsset(a);
+        if (e.target.closest('.tree-info-btn')) return; // handled above
+        treeStack.push({ id: a.id, label: a.label });
+        loadAssetTree(a.id);
       });
 
       $('assetTree').appendChild(node);
@@ -1089,7 +1403,12 @@ async function loadAssetTree(parentId = null) {
     const addBtn = document.createElement('button');
     addBtn.className = 'tree-add-btn';
     addBtn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+           stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="16"/>
+        <line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
       Register ${parentId ? 'child node' : 'new site or plant'}`;
     addBtn.addEventListener('click', () => openAddAsset(parentId));
     $('assetTree').appendChild(addBtn);
@@ -1100,9 +1419,9 @@ async function loadAssetTree(parentId = null) {
 }
 
 function renderBreadcrumb() {
-  const bc = $('assetBreadcrumb');
-  bc.innerHTML = '';
+  const bc     = $('assetBreadcrumb');
   const header = $('assetBreadcrumbHeader');
+  bc.innerHTML = '';
 
   const root = document.createElement('span');
   if (treeStack.length === 0) {
@@ -1138,7 +1457,9 @@ function renderBreadcrumb() {
   });
 }
 
-function selectAsset(a) {
+// ─── [D] Asset detail bottom sheet ───────────────────────────────────────────
+
+function openAssetDetail(a) {
   selectedAsset = a;
   $('detailName').textContent = a.label;
   $('detailId').textContent   = `${a.id} · ${a.node_type}`;
@@ -1166,8 +1487,106 @@ function selectAsset(a) {
     $('detailActions').appendChild(dwBtn);
   }
 
-  $('assetDetail').classList.add('visible');
+  $('assetDetailModal').classList.add('open');
 }
+
+function closeAssetDetail() {
+  $('assetDetailModal').classList.remove('open');
+}
+
+// ─── [C] Quick-jump search ────────────────────────────────────────────────────
+
+let qsDebounce = null;
+let qsAllAssets = [];  // flat asset list fetched once per Assets sub-view visit
+
+async function ensureQsCache() {
+  if (qsAllAssets.length) return;
+  try {
+    // Fetch root, then children two levels deep — same pattern as dashboard
+    const data = await apiFetch('/assets');
+    let all = data.assets || [];
+    await Promise.all(all.map(async a => {
+      try {
+        const d = await apiFetch(`/assets?parent_id=${encodeURIComponent(a.id)}`);
+        const ch = d.assets || [];
+        all = all.concat(ch);
+        await Promise.all(ch.map(async c => {
+          try {
+            const d2 = await apiFetch(`/assets?parent_id=${encodeURIComponent(c.id)}`);
+            all = all.concat(d2.assets || []);
+          } catch { /* ignore */ }
+        }));
+      } catch { /* ignore */ }
+    }));
+    qsAllAssets = all;
+  } catch { /* ignore */ }
+}
+
+$('assetQuickSearch').addEventListener('input', function () {
+  clearTimeout(qsDebounce);
+  const q = this.value.trim();
+  if (!q) { clearQuickSearch(); return; }
+  qsDebounce = setTimeout(() => runQuickSearch(q), 180);
+});
+
+$('assetQuickSearch').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { clearQuickSearch(); $('assetQuickSearch').value = ''; }
+});
+
+async function runQuickSearch(q) {
+  await ensureQsCache();
+  const upper = q.toUpperCase();
+  const hits = qsAllAssets.filter(a =>
+    a.id.toUpperCase().includes(upper) ||
+    a.label.toUpperCase().includes(upper) ||
+    (a.machine_type || '').toUpperCase().includes(upper)
+  );
+
+  const container = $('quickSearchResults');
+  $('assetTree').style.display = 'none';
+  $('assetBreadcrumb').style.display = 'none';
+  container.innerHTML = '';
+  container.classList.add('visible');
+
+  if (!hits.length) {
+    container.innerHTML = '<div class="qs-no-results">No assets match that search.</div>';
+    return;
+  }
+
+  hits.slice(0, 30).forEach(a => {
+    const critClass = { critical:'badge-critical', high:'badge-high', medium:'badge-medium', low:'badge-low' }[a.criticality] || 'badge-other';
+    const row = document.createElement('div');
+    row.className = 'qs-result';
+    row.innerHTML = `
+      <div>
+        <div class="qs-result-id">${a.id}</div>
+        <div class="qs-result-label">${a.label}</div>
+        <div class="qs-result-sub">${a.node_type}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="badge ${critClass}">${a.criticality}</span>
+        ${a.is_measurable ? '<span class="badge badge-artisan" style="font-size:.6rem;">CM</span>' : ''}
+      </div>`;
+    row.addEventListener('click', () => {
+      clearQuickSearch();
+      $('assetQuickSearch').value = '';
+      openAssetDetail(a);
+    });
+    container.appendChild(row);
+  });
+}
+
+function clearQuickSearch() {
+  $('quickSearchResults').innerHTML = '';
+  $('quickSearchResults').classList.remove('visible');
+  $('assetTree').style.display = '';
+  $('assetBreadcrumb').style.display = '';
+}
+
+// Invalidate quick-search cache when an asset is saved or deleted
+function invalidateQsCache() { qsAllAssets = []; }
+
+// ─── Add / Edit Asset ─────────────────────────────────────────────────────────
 
 function openAddAsset(parentId) {
   $('assetModalTitle').textContent = parentId ? 'Register Child Node' : 'Register Site / Plant';
@@ -1215,7 +1634,7 @@ function closeAssetModal() { $('assetModal').classList.remove('open'); }
 // ─── Suffix suggest ───────────────────────────────────────────────────────────
 
 let suggestDebounce = null;
-let allSuggestions  = [];   // full list fetched from API
+let allSuggestions  = [];
 let dropdownOpen    = false;
 
 $('aNodeSuffix').addEventListener('input', () => {
@@ -1258,10 +1677,7 @@ async function loadSuggestions() {
 
 function filterDropdown() {
   const typed = $('aNodeSuffix').value.trim().toUpperCase();
-  if (!typed) {
-    showDropdown(allSuggestions);
-    return;
-  }
+  if (!typed) { showDropdown(allSuggestions); return; }
   const filtered = allSuggestions.filter(s =>
     s.suffix.toUpperCase().startsWith(typed) ||
     s.description.toUpperCase().includes(typed)
@@ -1312,7 +1728,6 @@ function closeDropdown() {
   dropdownOpen = false;
 }
 
-// Reload suggestions when node_type changes — affects library filter
 $('aNodeType').addEventListener('change', () => {
   if ($('assetModal').classList.contains('open')) loadSuggestions();
 });
@@ -1354,6 +1769,7 @@ async function saveAsset() {
       showToast(`${label} updated`);
     }
     closeAssetModal();
+    invalidateQsCache();
     loadAssetTree(currentParentId);
   } catch (e) {
     showToast(e.message, 'error');
@@ -1367,7 +1783,7 @@ async function deleteAsset() {
     await apiFetch(`/assets/${encodeURIComponent(selectedAsset.id)}`, { method: 'DELETE' });
     showToast(`${selectedAsset.label} deleted`);
     selectedAsset = null;
-    $('assetDetail').classList.remove('visible');
+    invalidateQsCache();
     loadAssetTree(currentParentId);
   } catch (e) {
     showToast(e.message, 'error');
@@ -1377,8 +1793,6 @@ async function deleteAsset() {
 // ─── DiagnosticWand SSO link ──────────────────────────────────────────────────
 
 function launchDiagnosticWand() {
-  // Pass the Operum JWT as a query param — DiagnosticWand can accept it
-  // for seamless session handoff once that integration is built.
   window.open(`${DW_URL}?operum_token=${encodeURIComponent(jwtToken)}`, '_blank');
 }
 
