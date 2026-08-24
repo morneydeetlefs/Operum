@@ -27,6 +27,12 @@
  * DELETE /api/documents/:id               remove document
  *
  * GET  /api/log                            access log (admin only, ?limit=&offset=)
+ *
+ * GET  /api/talks                          list talks (?area= &shift= &date_from= &date_to=)
+ * POST /api/talks                          create talk (+ optional attendees[])
+ * GET  /api/talks/:id                      single talk with full attendance list
+ * POST /api/talks/:id/attend              add attendees to existing talk
+ * PATCH /api/talks/:id/attend/:emp_id     mark attendee as signed
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -830,6 +836,167 @@ export default {
       const total = await db.prepare(`SELECT COUNT(*) as n FROM access_log`).first<{ n: number }>();
       return json({ log: rows.results, total: total?.n ?? 0, limit, offset });
     }
+
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // TOOLBOX TALKS
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── GET /api/talks ────────────────────────────────────────────────────────
+    // Query params: area, shift, date_from, date_to (all optional)
+    // Returns: list of talks with attendance summary counts.
+    if (method === 'GET' && path === '/api/talks') {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+
+      const area      = url.searchParams.get('area')      || null;
+      const shift     = url.searchParams.get('shift')     || null;
+      const dateFrom  = url.searchParams.get('date_from') || null;
+      const dateTo    = url.searchParams.get('date_to')   || null;
+
+      let sql = `
+        SELECT
+          t.id, t.title, t.conducted_by, t.area, t.shift, t.talk_date, t.notes, t.created_at,
+          COUNT(a.id) AS attendance_total,
+          SUM(CASE WHEN a.signed = 1 THEN 1 ELSE 0 END) AS attendance_signed
+        FROM toolbox_talks t
+        LEFT JOIN talk_attendance a ON a.talk_id = t.id
+        WHERE 1=1
+      `;
+      const bindings: (string | null)[] = [];
+
+      if (area)     { sql += ` AND t.area = ?`;       bindings.push(area); }
+      if (shift)    { sql += ` AND t.shift = ?`;      bindings.push(shift); }
+      if (dateFrom) { sql += ` AND t.talk_date >= ?`; bindings.push(dateFrom); }
+      if (dateTo)   { sql += ` AND t.talk_date <= ?`; bindings.push(dateTo); }
+
+      sql += ` GROUP BY t.id ORDER BY t.talk_date DESC LIMIT 100`;
+
+      const result = await db.prepare(sql).bind(...bindings).all();
+      return json({ talks: result.results });
+    }
+
+    // ── POST /api/talks ───────────────────────────────────────────────────────
+    // Body: { title, area?, shift?, talk_date, notes?, attendees?: string[] }
+    // conducted_by is taken from JWT sub.
+    if (method === 'POST' && path === '/api/talks') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        title?: string; area?: string; shift?: string;
+        talk_date?: string; notes?: string; attendees?: string[];
+      };
+
+      if (!b.title?.trim())     return err('title is required', 400, origin);
+      if (!b.talk_date?.trim()) return err('talk_date is required', 400, origin);
+      if (b.shift && !['day','night'].includes(b.shift)) return err('shift must be day or night', 400, origin);
+
+      // Generate ID: TBT-YYYY-NNN (sequential within year)
+      const year = b.talk_date.slice(0, 4);
+      const countRow = await db.prepare(
+        `SELECT COUNT(*) AS n FROM toolbox_talks WHERE talk_date LIKE ?`
+      ).bind(`${year}%`).first<{ n: number }>();
+      const seq = String((countRow?.n ?? 0) + 1).padStart(3, '0');
+      const id  = `TBT-${year}-${seq}`;
+
+      await db.prepare(`
+        INSERT INTO toolbox_talks (id, title, conducted_by, area, shift, talk_date, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        id,
+        b.title.trim(),
+        actor.sub,
+        b.area?.trim()  ?? null,
+        b.shift         ?? null,
+        b.talk_date,
+        b.notes?.trim() ?? null
+      ).run();
+
+      if (b.attendees?.length) {
+        const stmts = b.attendees.map(empId =>
+          db.prepare(`INSERT INTO talk_attendance (talk_id, emp_id) VALUES (?, ?)`)
+            .bind(id, empId)
+        );
+        await db.batch(stmts);
+      }
+
+      await log(db, actor.sub, 'create', `talk:${id}`, { title: b.title }, ip);
+      return json({ id }, 201);
+    }
+
+    // ── GET /api/talks/:id ────────────────────────────────────────────────────
+    // Returns talk record + full attendance list with employee names.
+    const talkDetailMatch = path.match(/^\/api\/talks\/([A-Z0-9-]+)$/);
+    if (method === 'GET' && talkDetailMatch) {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+
+      const talkId = talkDetailMatch[1];
+      const talk   = await db.prepare(`SELECT * FROM toolbox_talks WHERE id = ?`).bind(talkId).first();
+      if (!talk) return err('Talk not found', 404, origin);
+
+      const attendance = await db.prepare(`
+        SELECT a.id, a.emp_id, a.signed, a.signed_at, e.name
+        FROM talk_attendance a
+        LEFT JOIN employees e ON e.id = a.emp_id
+        WHERE a.talk_id = ?
+        ORDER BY e.name
+      `).bind(talkId).all();
+
+      await log(db, actor.sub, 'view', `talk:${talkId}`, null, ip);
+      return json({ talk, attendance: attendance.results });
+    }
+
+    // ── POST /api/talks/:id/attend ────────────────────────────────────────────
+    // Body: { attendees: string[] } — add attendees; silently skips duplicates.
+    const attendAddMatch = path.match(/^\/api\/talks\/([A-Z0-9-]+)\/attend$/);
+    if (method === 'POST' && attendAddMatch) {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+
+      const talkId = attendAddMatch[1];
+      const talk   = await db.prepare(`SELECT id FROM toolbox_talks WHERE id = ?`).bind(talkId).first();
+      if (!talk) return err('Talk not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as { attendees?: string[] };
+      if (!b.attendees?.length) return err('attendees array is required', 400, origin);
+
+      const existing = await db.prepare(
+        `SELECT emp_id FROM talk_attendance WHERE talk_id = ?`
+      ).bind(talkId).all<{ emp_id: string }>();
+      const existingIds = new Set(existing.results.map(r => r.emp_id));
+
+      const newAttendees = b.attendees.filter(empId => !existingIds.has(empId));
+      if (newAttendees.length) {
+        const stmts = newAttendees.map(empId =>
+          db.prepare(`INSERT INTO talk_attendance (talk_id, emp_id) VALUES (?, ?)`).bind(talkId, empId)
+        );
+        await db.batch(stmts);
+      }
+
+      await log(db, actor.sub, 'update', `talk:${talkId}/attend`, { added: newAttendees.length }, ip);
+      return json({ added: newAttendees.length, skipped: b.attendees.length - newAttendees.length });
+    }
+
+    // ── PATCH /api/talks/:id/attend/:emp_id ──────────────────────────────────
+    // Marks one attendee as signed. No body required.
+    const signMatch = path.match(/^\/api\/talks\/([A-Z0-9-]+)\/attend\/([^/]+)$/);
+    if (method === 'PATCH' && signMatch) {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+
+      const talkId = signMatch[1];
+      const empId  = decodeURIComponent(signMatch[2]);
+      const now    = new Date().toISOString();
+
+      const result = await db.prepare(`
+        UPDATE talk_attendance SET signed = 1, signed_at = ?
+        WHERE talk_id = ? AND emp_id = ?
+      `).bind(now, talkId, empId).run();
+
+      if (!result.meta.changes) return err('Attendance record not found', 404, origin);
+
+      await log(db, actor.sub, 'update', `talk:${talkId}/sign/${empId}`, null, ip);
+      return json({ signed: true, signed_at: now });
+    }
+
+    // ── END TOOLBOX TALKS ─────────────────────────────────────────────────────
 
     return err('Not found', 404, origin);
   },
