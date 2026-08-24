@@ -73,15 +73,60 @@ The asset register is the spine. Every other module ties back to it. Nothing is 
 ```
 OPERUM PLATFORM
 │
-├── 1. REGISTER (Foundation — built first)
+├── 1. REGISTER (Foundation — built first) ✓ FUNCTIONAL
 │   ├── Location hierarchy (Site → Plant → Area → Zone)
 │   ├── Equipment / Asset register (machines, criticality, hazards, isolation points)
 │   ├── Measurement points (for condition monitoring)
 │   ├── Tools & Equipment (calibrated instruments, lifting gear, PPE)
-│   ├── Persons register (artisans, supervisors, contractors, safety reps)
+│   ├── Persons register (roles, access profiles, department tags, trade)
 │   └── Documents (SWPs, OEM manuals, MSDSs, certificates — attached to assets)
 │
-├── 2. MAINTENANCE
+├── 2. SAFETY (builds on register)
+│   │
+│   ├── 2a. CHEMICALS REGISTER (Safety owns — built first within Safety)
+│   │   ├── Chemical master data (name, CAS number, GHS hazard class)
+│   │   ├── Exposure limits (OEL/TLV per domain — Health/Safety/Environment)
+│   │   ├── Storage rules (temperature, containment, segregation requirements)
+│   │   ├── Incompatibility matrix (substances that cannot be co-located)
+│   │   ├── MSDS documents (versioned, expiry-aware, language variants)
+│   │   └── Public QR access (unauthenticated MSDS view for emergencies)
+│   │
+│   ├── 2b. HIRA — Hazard Identification & Risk Assessment
+│   │   ├── Situational RA (task + location + time + people + chemicals)
+│   │   ├── Auto-population from asset structural hazards (register → HIRA)
+│   │   ├── NOSA 3D matrix: Likelihood × Severity × Exposure
+│   │   │   scored separately across Health / Safety / Environment domains
+│   │   │   score = L × S × E (1–125); bands: Low≤20 / Medium≤50 / High≤100 / Critical≤125
+│   │   ├── Residual risk after controls (hierarchy of controls documented)
+│   │   ├── Mandated threshold enforcement — management sets base thresholds
+│   │   │   per domain; criticality multiplier auto-tightens for critical assets
+│   │   │   (Critical 0.5× / High 0.75× / Medium 1.0× / Low 1.25×)
+│   │   ├── Threshold breach → escalation to named manager for risk acceptance
+│   │   │   sign-off (immutable, timestamped, audit-logged — legally defensible)
+│   │   └── Review schedule and expiry (expired RA = compliance gap on dashboard)
+│   │
+│   ├── 2c. Toolbox talks (attendance, topics, references active HIRAs for shift)
+│   ├── 2d. BBS observations
+│   ├── 2e. Safety rep inspections (Section 8/9 OHSA)
+│   ├── 2f. Incident & near-miss reporting (Section 24 OHSA)
+│   └── 2g. PTW — Permit to Work (last — consumes HIRA, chemicals, isolations)
+│
+├── 3. STORES
+│   ├── Item master (spares, consumables, chemicals)
+│   │   ├── Spares — asset-linked (which assets does this part fit)
+│   │   ├── Consumables — general (not asset-specific)
+│   │   └── Chemicals — references Chemicals Register for safety data
+│   ├── Store locations
+│   │   ├── Main stores (site-level)
+│   │   ├── Satellite workshops (area-level — multiple per site)
+│   │   └── Hazmat stores (area-level — dedicated chemical storage locations)
+│   ├── Stock on hand (quantity per item per location)
+│   ├── Issue transactions (who took what, when, against which work order)
+│   ├── Receipt transactions (with active incompatibility warning for chemicals)
+│   ├── Minimum stock levels and reorder alerts
+│   └── CSV / SAP MM import (item master population)
+│
+├── 4. MAINTENANCE (builds on register + stores)
 │   ├── Fault notifications (anyone can raise)
 │   ├── Work orders (created from notifications or planned)
 │   ├── Job cards (artisan-facing, mobile-first)
@@ -89,19 +134,12 @@ OPERUM PLATFORM
 │   ├── Sign-off and feedback loop
 │   └── Maintenance history per asset
 │
-├── 3. SAFETY
-│   ├── Toolbox talks (attendance, topics, sign-off)
-│   ├── Behaviour Based Safety (BBS) observations
-│   ├── Safety rep inspections (legal requirement — Section 8/9 OHSA)
-│   ├── Incident & near-miss reporting (Section 24 OHSA compliance)
-│   ├── Risk assessments (linked to job cards and assets)
-│   └── Permit to Work / PTW (complex — built last within safety module)
-│
-└── 4. CONDITION MONITORING (Add-on module)
+└── 5. CONDITION MONITORING (Add-on module)
     └── DiagnosticWand integration
         ├── Vibration readings (RMS, crest factor, kurtosis, FFT)
         ├── Acoustic readings (dBFS)
         ├── Measurement points from asset register
+        ├── Health summary endpoint (feeds Operum health chip)
         └── Trend data feeding maintenance decisions
 ```
 
@@ -119,30 +157,49 @@ The Groq LLM layer produces a first-draft SWP from structured asset data. A safe
 
 ## Build Sequence
 
-**Phase 1 — Register (build first)**
-1. Location hierarchy
-2. Asset / Equipment register (with hazards, criticality, isolation points)
-3. Persons register (roles, competencies, area assignments)
-4. Documents (attached to assets)
+**Phase 1 — Register ✓ FUNCTIONAL**
+1. Location hierarchy ✓
+2. Asset / Equipment register (hazards, criticality, isolation points, copy subtree) ✓
+3. Persons register (access profiles, department tags, trade) ✓
+4. Documents (attached to assets) ✓
 
 **Phase 2 — Safety (builds on register)**
-5. Toolbox talks
-6. BBS observations
-7. Safety rep inspections
-8. Incident & near-miss reporting
-9. Risk assessments
-10. PTW (last — most complex, highest stakes)
+5. Chemicals Register (Safety owns — built first; Stores and HIRA both depend on it)
+   - Chemical master data, GHS classification, OEL/TLV
+   - Storage rules and incompatibility matrix
+   - MSDS documents — versioned, expiry-aware, language variants
+   - Public QR route (unauthenticated — emergency access, no login required)
+6. HIRA — Hazard Identification & Risk Assessment
+   - Situational RA linked to task + location + time + people + chemicals
+   - NOSA 3D matrix (L × S × E, scored per Health / Safety / Environment domain)
+   - Auto-population from asset structural hazards
+   - Mandated threshold enforcement with criticality multiplier
+   - Risk acceptance sign-off flow (named manager, immutable, audit-logged)
+   - Review schedule and expiry tracking
+7. Toolbox talks (attendance, topics, references active HIRAs)
+8. BBS observations
+9. Safety rep inspections (Section 8/9 OHSA)
+10. Incident & near-miss reporting (Section 24 OHSA)
+11. PTW (last — consumes HIRA, chemicals register, isolation points)
 
-**Phase 3 — Maintenance (builds on register)**
-11. Fault notifications
-12. Work orders & job cards
-13. Planned maintenance scheduling
+**Phase 3 — Stores (builds on register + chemicals register)**
+12. Item master (spares, consumables, chemicals)
+13. Store locations (main, satellite workshops, hazmat stores — multiple per area)
+14. Stock on hand, issue and receipt transactions
+15. Active incompatibility warning at chemical receipt
+16. Minimum stock levels and reorder alerts
+17. CSV / SAP MM import
 
-**Phase 4 — Add-ons**
-14. DiagnosticWand → Condition Monitoring module
-15. LLM fault narrative (Groq)
-16. SAP integration (enterprise)
-17. Dashboard map view (Leaflet — machines by health status)
+**Phase 4 — Maintenance (builds on register + stores)**
+18. Fault notifications
+19. Work orders & job cards
+20. Planned maintenance scheduling
+
+**Phase 5 — Add-ons**
+21. DiagnosticWand → Condition Monitoring module (health summary endpoint)
+22. LLM fault narrative (Groq)
+23. SAP integration (enterprise)
+24. Dashboard map view (Leaflet — machines by health status)
 
 ---
 
@@ -259,6 +316,153 @@ Updated JWT payload to reflect this:
 ```
 
 The module nav filters on `role` (access profile). Reporting, PTW assignment, and audit trail use `department` and `trade`. These are never mixed.
+
+---
+
+## Safety & Stores Architecture Decisions
+
+*Decisions recorded August 2026.*
+
+---
+
+### HIRA — Situational risk assessment model
+
+A risk assessment in Operum is not a static document attached to an asset. It is a **situational assessment instance** created for a specific job at a specific place and time. The asset register provides structural hazard context (what is always dangerous about this location). The task provides activity-specific hazards. The assessment combines both into a situational risk picture tied to:
+
+- The task being performed
+- The location in the asset hierarchy
+- The time (shift, environmental conditions)
+- The people performing the work (competency, certification, number)
+- The equipment and chemicals involved
+
+The asset's existing `hazards` and `isolation_pts` fields auto-populate the HIRA as a starting point. The assessor adds task-specific hazards on top. The register is the library; the HIRA is the application of that library to a specific situation.
+
+---
+
+### NOSA 3D risk matrix — fixed standard, not configurable
+
+Operum uses the NOSA three-dimensional risk matrix. This is the standard used across SA heavy industry and is not configurable per tenant — it is the platform standard.
+
+**Three axes:**
+- **Likelihood (L)** — 1 (rare) to 5 (almost certain)
+- **Severity (S)** — 1 (negligible) to 5 (catastrophic)
+- **Exposure (E)** — 1 (rare/limited exposure) to 5 (continuous/widespread)
+
+**Score:** L × S × E → range 1 to 125
+
+**Bands:**
+| Score | Band | Colour |
+|---|---|---|
+| 1–20 | Low | Green |
+| 21–50 | Medium | Amber |
+| 51–100 | High | Orange |
+| 101–125 | Critical | Red |
+
+**Three domains — scored independently per hazard:**
+- **Health** — occupational health impact (dust, noise, chemical exposure, ergonomics)
+- **Safety** — injury or fatality risk
+- **Environmental** — impact on surrounding environment (spills, emissions, waste)
+
+Each hazard receives three scores — one per domain. The highest score across all three domains drives the overall risk rating for that hazard.
+
+---
+
+### Mandated threshold enforcement
+
+Management sets a **maximum acceptable residual risk score** per domain at tenant configuration level. These thresholds represent the organisation's stated risk tolerance and are legally significant.
+
+**Criticality multiplier** — the system auto-tightens thresholds based on asset criticality. Management sets one base threshold per domain. The multiplier applies automatically:
+
+| Asset criticality | Multiplier | Effect on threshold |
+|---|---|---|
+| Critical | 0.5× | Threshold halved — much tighter |
+| High | 0.75× | Threshold reduced by 25% |
+| Medium | 1.0× | Base threshold applies |
+| Low | 1.25× | Threshold relaxed by 25% |
+
+Multipliers are fixed in the platform. They are not configurable.
+
+**Enforcement flow:**
+
+```
+Assessor completes HIRA
+        ↓
+System calculates residual risk (L × S × E after controls) per hazard per domain
+        ↓
+All residuals ≤ mandated threshold (adjusted for asset criticality)?
+    ├── YES → RA submitted for Safety Officer review → Approved → Work may proceed
+    └── NO  → RA flagged: EXCEEDS THRESHOLD
+                    ↓
+              Assessor strengthens controls and resubmits
+                    OR
+              Escalates to named manager for risk acceptance sign-off
+                    ↓
+              Manager records reason, signs digitally
+                    ↓
+              RA approved with exception — immutable, timestamped, audit-logged
+```
+
+Risk acceptance sign-offs are tied to a real person (JWT `sub`), not just a role. They cannot be edited once signed — only superseded by a new RA. They appear in all OHSA compliance reports and Section 24 investigation exports.
+
+---
+
+### Chemicals Register — owned by Safety, referenced by Stores
+
+The Chemicals Register is a Safety object. Stores consumes it for quantity and location tracking but does not own the master data.
+
+**Chemical master record contains:**
+- Name, CAS number, trade names
+- GHS hazard classification (SA SANS 10234 / GHS aligned)
+- Exposure limits: OEL (Occupational Exposure Limit) and TLV (Threshold Limit Value) per Health/Safety/Environment domain
+- Storage requirements (temperature range, containment class, ventilation)
+- Incompatibility rules (which GHS classes or specific substances cannot be co-located)
+- Disposal requirements and emergency response summary
+- MSDS documents (versioned — see below)
+
+**Incompatibility enforcement — active warning at receipt:**
+When a chemical is received into a hazmat store, the system checks all chemicals already present in that store against the incompatibility matrix. If any incompatible substance is present, the receipt is blocked with a warning identifying the conflict. The receiving user cannot proceed without a named Safety Officer override — which is logged.
+
+**MSDS document model — extended from asset document model:**
+- Version-controlled — each revision is a new record; previous versions retained
+- Expiry date — expired MSDS surfaces as a compliance gap on the Safety dashboard
+- Language variants — multiple language versions per chemical (EN, AF, and site-specific languages)
+- Emergency QR access — each chemical has a public QR code linking to its current MSDS without requiring login. The public route returns only the current approved MSDS PDF for that chemical. No other data is exposed on the unauthenticated route. The Worker serves this via a dedicated `/public/msds/:chemical_id` endpoint.
+
+---
+
+### Stores module — inventory management scope only
+
+Stores manages stock on hand, locations, transactions, and alerts. Procurement (purchase orders, supplier management, lead times) is out of scope — those remain in the client's existing ERP (SAP MM, Sage, etc.).
+
+**Store location types:**
+- **Main stores** — site-level, general stock
+- **Satellite workshops** — area-level, multiple per site, stocks spares and consumables for that area's assets
+- **Hazmat stores** — area-level, dedicated chemical storage, governed by incompatibility matrix and storage rules from the Chemicals Register
+
+**Transactions:**
+- Issue — records who took what, when, against which work order or task
+- Receipt — records what arrived, from where; triggers incompatibility check for chemicals
+- Adjustment — stock count correction (authorised users only, audit-logged)
+
+**Alerts:**
+- Stock below minimum level → reorder alert on Stores dashboard
+- Expired MSDS for a chemical in stock → safety compliance alert
+- Incompatible chemicals in same store → safety alert (should not occur if receipt enforcement works; alert catches legacy data on import)
+
+**Import:**
+CSV import for item master population. SAP MM extract format supported. No live bidirectional sync with SAP MM in this scope — that is an enterprise add-on.
+
+---
+
+### Open questions — Safety & Stores
+
+1. **Task library** — HIRAs reference a task type (e.g. "Bearing replacement", "Conveyor belt cleaning", "Confined space entry"). Should Operum ship a standard task library for SA heavy industry, or is the task list fully defined per tenant? A standard library accelerates onboarding but may not match site-specific terminology.
+
+2. **PTW design** — requires external safety professional input before build. Do not design or build PTW without a qualified safety officer reviewing the workflow. This constraint stands from the original concept document.
+
+3. **Toolbox talk — HIRA reference** — a toolbox talk for a shift should reference the active HIRAs for that shift's planned tasks. The link between toolbox talk topics and HIRA records needs a design decision: does the toolbox talk pull from HIRAs automatically, or does the Safety Officer manually select which HIRAs to reference?
+
+4. **Chemical import format** — when a client already has a chemical register in SAP (MM/EHS module) or a spreadsheet, what is the import format? Define a standard CSV template before building the import feature.
 
 ---
 
@@ -477,6 +681,12 @@ These are unresolved and need a decision before or during build:
 7. **Offline-first depth** — DiagnosticWand already has offline queue for readings. Operum needs an offline-first strategy for all modules — artisans work in RF-shielded areas, underground, in remote locations. Define which data must be available offline and which requires connectivity.
 
 8. **Department and trade taxonomy** — department tags are free-form strings, which is flexible but risks inconsistency across a multi-site deployment (e.g. `station_cleaning` vs `stn_cleaning` vs `cleaning`). Decide whether to ship a recommended standard tag list with the platform or leave it fully open per tenant. The PTW module will need to filter and report by department — inconsistent tags will cause reporting gaps. Revisit before PTW is designed.
+
+9. **Task library for HIRA** — should Operum ship a standard task library for SA heavy industry, or is the task list fully defined per tenant? A standard library accelerates onboarding but may not match site-specific terminology. Decide before HIRA build begins.
+
+10. **Toolbox talk — HIRA reference model** — does a toolbox talk pull active HIRAs for the shift automatically, or does the Safety Officer manually select which HIRAs to reference? Decide before toolbox talk build.
+
+11. **Chemical import format** — define a standard CSV template for chemical register import before building the import feature. SA clients may have existing registers in SAP EHS, Excel, or a safety management system. The template must accommodate GHS classification, OEL/TLV values, and storage rules at minimum.
 
 ---
 
