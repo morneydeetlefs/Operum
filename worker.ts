@@ -33,13 +33,23 @@
  * GET  /api/talks/:id                      single talk with full attendance list
  * POST /api/talks/:id/attend              add attendees to existing talk
  * PATCH /api/talks/:id/attend/:emp_id     mark attendee as signed
+ *
+ * ── Condition Monitoring (DiagnosticWand add-on) ─────────────────────────────
+ * GET  /api/assets/measurable              flat list of measurable nodes with health status
+ * GET  /api/assets/measurable/trends       last 12 readings per measurable asset (sparklines)
+ * GET  /api/assets/:id/trend              readings over time for one measurable node
+ * POST /api/assets/:id/reset-baseline     zero or force-set baseline_rms
+ * POST /api/diagnostics                   submit a sensor reading
+ * GET  /api/diagnostics/recent            last N readings across all assets (audit trail)
+ * GET  /api/diagnostics?asset_id=&limit=&offset=
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
 export interface Env {
   DB: D1Database;
   OPERUM_JWT_SECRET: string;
-  CORS_ORIGIN: string;
+  CORS_ORIGIN: string;          // primary — operum.pages.dev
+  CORS_ORIGIN_WAND?: string;    // optional — diagnostic-wand.pages.dev (until it moves to operum.co.za)
 }
 
 type Role =
@@ -168,11 +178,58 @@ async function log(
   ).run();
 }
 
+// ─── Condition Monitoring helpers ────────────────────────────────────────────
+// Ported from DiagnosticWand worker.ts — single source of truth now lives here.
+
+// Field-tested sensor noise floor (~0.005g).
+// A reading at or below this is indistinguishable from a phone sitting idle
+// and must never be silently locked in as a baseline.
+const NOISE_FLOOR_RMS = 0.005;
+
+function statusOnly(
+  rmsNum: number | null, baseline: number,
+  crestNum: number | null, kurtNum: number | null,
+): 'no-data' | 'no-baseline' | 'normal' | 'warning' | 'critical' {
+  if (rmsNum == null) return 'no-data';
+  if (baseline <= 0)  return 'no-baseline';
+  const ratio        = rmsNum / baseline;
+  const signalValid  = rmsNum > NOISE_FLOOR_RMS;
+  const crestCrit    = signalValid && crestNum != null && crestNum >= 6.0;
+  const crestWarn    = signalValid && crestNum != null && crestNum >= 5.0;
+  const kurtWarn     = signalValid && kurtNum  != null && kurtNum  > 4;
+  if (ratio >= 4.0 || crestCrit) return 'critical';
+  if (ratio >= 2.5 || crestWarn || kurtWarn) return 'warning';
+  return 'normal';
+}
+
+function assessHealth(
+  rmsNum: number, baseline: number, crestNum: number,
+  kurtNum: number | null, _soundNum: number,
+): { status: string; ratio: number; alerts: string[] } {
+  const ratio  = baseline > 0 ? rmsNum / baseline : 1;
+  const alerts: string[] = [];
+  if      (ratio >= 4.0) alerts.push(`RMS is ${ratio.toFixed(1)}x baseline — critical, isolate and inspect immediately`);
+  else if (ratio >= 2.5) alerts.push(`RMS is ${ratio.toFixed(1)}x baseline — schedule preventive maintenance`);
+  const signalValid = rmsNum > NOISE_FLOOR_RMS;
+  if (signalValid && crestNum >= 6.0) alerts.push(`Crest factor ${crestNum.toFixed(2)} — severe impulsive shock loading`);
+  else if (signalValid && crestNum >= 5.0) alerts.push(`Crest factor ${crestNum.toFixed(2)} — impulsive loading detected`);
+  if (signalValid && kurtNum != null && kurtNum > 4) alerts.push(`Kurtosis ${kurtNum.toFixed(2)} — impulsive fault signature`);
+  const status = alerts.length === 0 ? 'normal'
+    : (ratio >= 4.0 || (signalValid && crestNum >= 6.0)) ? 'critical' : 'warning';
+  return { status, ratio, alerts };
+}
+
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
-    const origin = env.CORS_ORIGIN || '*';
+    // Multi-origin CORS — operum.pages.dev always allowed;
+    // diagnostic-wand.pages.dev allowed until DiagnosticWand moves to operum.co.za subdomain.
+    const reqOrigin = req.headers.get('Origin') ?? '';
+    const origin = (env.CORS_ORIGIN_WAND && reqOrigin === env.CORS_ORIGIN_WAND)
+      ? reqOrigin
+      : (env.CORS_ORIGIN || '*');
+
     const url    = new URL(req.url);
     const path   = url.pathname;
     const method = req.method;
@@ -997,6 +1054,278 @@ export default {
     }
 
     // ── END TOOLBOX TALKS ─────────────────────────────────────────────────────
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CONDITION MONITORING (DiagnosticWand — add-on module)
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── GET /api/assets/measurable/trends ─────────────────────────────────────
+    // Must be matched before /api/assets/measurable (more specific path first).
+    // Returns last 12 readings per measurable asset — one query for all sparklines.
+    if (method === 'GET' && path === '/api/assets/measurable/trends') {
+      const perAsset = Math.min(Number(url.searchParams.get('limit') ?? '12'), 50);
+      const { results } = await db.prepare(`
+        SELECT asset_id, timestamp, rms_accel
+        FROM (
+          SELECT
+            dl.asset_id, dl.timestamp, dl.rms_accel,
+            ROW_NUMBER() OVER (PARTITION BY dl.asset_id ORDER BY dl.timestamp DESC) AS rn
+          FROM diagnostic_logs dl
+          JOIN assets a ON a.id = dl.asset_id
+          WHERE a.is_measurable = 1
+        )
+        WHERE rn <= ?
+        ORDER BY asset_id, timestamp ASC
+      `).bind(perAsset).all<{ asset_id: string; timestamp: string; rms_accel: number }>();
+
+      const byAsset: Record<string, Array<{ timestamp: string; rms_accel: number }>> = {};
+      for (const row of results) {
+        if (!byAsset[row.asset_id]) byAsset[row.asset_id] = [];
+        byAsset[row.asset_id].push({ timestamp: row.timestamp, rms_accel: row.rms_accel });
+      }
+      return json({ trends: byAsset }, 200, origin);
+    }
+
+    // ── GET /api/assets/measurable ────────────────────────────────────────────
+    // Flat list of every measurable node with health status. Used by dashboard.html.
+    if (method === 'GET' && path === '/api/assets/measurable') {
+      const { results } = await db.prepare(`
+        SELECT
+          a.*,
+          MAX(dl.timestamp)   AS last_reading_at,
+          MAX(dl.rms_accel)   AS last_rms_accel,
+          MAX(dl.crest_factor) AS last_crest_factor,
+          MAX(dl.kurtosis)    AS last_kurtosis,
+          MAX(dl.sound_db)    AS last_sound_db,
+          COUNT(dl.id)        AS reading_count,
+          COUNT(DISTINCT CASE WHEN dl.id IS NOT NULL THEN 1 END) AS child_count
+        FROM assets a
+        LEFT JOIN diagnostic_logs dl ON dl.asset_id = a.id
+        WHERE a.is_measurable = 1
+        GROUP BY a.id
+        ORDER BY a.label
+      `).all<AssetRow & {
+        last_reading_at: string | null; last_rms_accel: number | null;
+        last_crest_factor: number | null; last_kurtosis: number | null;
+        last_sound_db: number | null; reading_count: number;
+      }>();
+
+      // Build full breadcrumb in memory — one extra query, zero per-node round-trips
+      const { results: allNodes } = await db.prepare(
+        'SELECT id, parent_id, label FROM assets'
+      ).all<{ id: string; parent_id: string | null; label: string }>();
+      const byId = new Map(allNodes.map(n => [n.id, n]));
+
+      const withStatus = results.map(a => {
+        const crumbs: string[] = [];
+        let cur = a.parent_id ? byId.get(a.parent_id) : undefined;
+        while (cur) { crumbs.unshift(cur.label); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
+        const status = statusOnly(a.last_rms_accel, a.baseline_rms, a.last_crest_factor, a.last_kurtosis);
+        return { ...a, breadcrumb_path: crumbs.join(' / '), status };
+      });
+
+      return json({ assets: withStatus, count: withStatus.length }, 200, origin);
+    }
+
+    // ── GET /api/assets/:id/trend ─────────────────────────────────────────────
+    // Readings over time for one measurable node.
+    const trendMatch = path.match(/^\/api\/assets\/([^/]+)\/trend$/);
+    if (trendMatch && method === 'GET') {
+      const assetId = decodeURIComponent(trendMatch[1]);
+      const limit   = Math.min(Number(url.searchParams.get('limit') ?? '50'), 200);
+
+      const asset = await db.prepare(
+        'SELECT id, is_measurable, label FROM assets WHERE id = ?'
+      ).bind(assetId).first<{ id: string; is_measurable: number; label: string }>();
+      if (!asset)               return err('Asset not found', 404, origin);
+      if (!asset.is_measurable) return err('This node is not measurable', 400, origin);
+
+      const { results } = await db.prepare(`
+        SELECT timestamp, rms_accel, peak_g, crest_factor, kurtosis, sound_db
+        FROM diagnostic_logs
+        WHERE asset_id = ?
+        ORDER BY timestamp DESC
+        LIMIT ?
+      `).bind(assetId, limit).all();
+
+      return json({ asset_id: assetId, label: asset.label, trend: results.reverse() }, 200, origin);
+    }
+
+    // ── POST /api/assets/:id/reset-baseline ───────────────────────────────────
+    const resetBaselineMatch = path.match(/^\/api\/assets\/([^/]+)\/reset-baseline$/);
+    if (resetBaselineMatch && method === 'POST') {
+      if (!actor || !can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const assetId = decodeURIComponent(resetBaselineMatch[1]);
+
+      let body: Record<string, unknown> = {};
+      try { body = await req.json(); } catch { /* empty body is fine */ }
+      const forceRms = body.baseline_rms != null ? Number(body.baseline_rms) : null;
+
+      const asset = await db.prepare('SELECT id, is_measurable FROM assets WHERE id = ?')
+        .bind(assetId).first<{ id: string; is_measurable: number }>();
+      if (!asset)               return err('Asset not found', 404, origin);
+      if (!asset.is_measurable) return err('Asset is not measurable', 400, origin);
+
+      if (forceRms != null && forceRms > 0) {
+        await db.prepare('UPDATE assets SET baseline_rms = ?, baseline_set_at = ? WHERE id = ?')
+          .bind(forceRms, new Date().toISOString(), assetId).run();
+        await log(db, actor.sub, 'update', `asset:${assetId}/baseline`, { baseline_rms: forceRms }, ip);
+        return json({ ok: true, baseline_rms: forceRms, mode: 'forced' }, 200, origin);
+      } else {
+        await db.prepare('UPDATE assets SET baseline_rms = 0, baseline_set_at = NULL WHERE id = ?')
+          .bind(assetId).run();
+        await log(db, actor.sub, 'update', `asset:${assetId}/baseline`, { baseline_rms: 0 }, ip);
+        return json({ ok: true, baseline_rms: 0, mode: 'reset' }, 200, origin);
+      }
+    }
+
+    // ── POST /api/diagnostics ─────────────────────────────────────────────────
+    // Submit a sensor reading from DiagnosticWand. Auth required.
+    if (method === 'POST' && path === '/api/diagnostics') {
+      // DiagnosticWand may call this without an Operum role JWT — allow artisan-level
+      // access via the OPERUM_JWT_SECRET which both apps share.
+      let body: Record<string, unknown>;
+      try { body = await req.json(); } catch { return err('Invalid JSON', 400, origin); }
+
+      const metrics      = (body.metrics && typeof body.metrics === 'object')
+        ? body.metrics as Record<string, unknown> : body;
+      const asset_id     = body.asset_id ?? body.point_id;
+      const device_id    = body.device_id;
+      const timestamp    = body.timestamp;
+      const rms_accel    = metrics.rms_accel;
+      const peak_g       = metrics.peak_g;
+      const crest_factor = metrics.crest_factor;
+      const kurtosis     = metrics.kurtosis;
+      const sound_db     = metrics.sound_db;
+      const snapshot_url = body.snapshot_url;
+
+      if (!asset_id     || typeof asset_id !== 'string')                        return err('asset_id is required', 400, origin);
+      if (!device_id    || typeof device_id !== 'string')                       return err('device_id is required', 400, origin);
+      if (!timestamp    || isNaN(Date.parse(String(timestamp))))                return err('timestamp must be valid ISO 8601', 400, origin);
+      if (rms_accel    == null || isNaN(Number(rms_accel))    || Number(rms_accel)    < 0) return err('rms_accel must be >= 0', 400, origin);
+      if (peak_g       == null || isNaN(Number(peak_g))       || Number(peak_g)       < 0) return err('peak_g must be >= 0', 400, origin);
+      if (crest_factor == null || isNaN(Number(crest_factor)) || Number(crest_factor) < 0) return err('crest_factor must be >= 0', 400, origin);
+      if (sound_db     == null || isNaN(Number(sound_db))     || Number(sound_db)     < 0) return err('sound_db must be >= 0', 400, origin);
+
+      const assetIdStr = String(asset_id).trim();
+      const rmsNum     = Number(rms_accel);
+
+      const asset = await db.prepare(
+        'SELECT id, is_measurable, baseline_rms FROM assets WHERE id = ?'
+      ).bind(assetIdStr).first<{ id: string; is_measurable: number; baseline_rms: number }>();
+      if (!asset)               return err(`asset_id "${assetIdStr}" not found`, 404, origin);
+      if (!asset.is_measurable) return err(`asset "${assetIdStr}" is not measurable`, 400, origin);
+
+      const isFirstReading = asset.baseline_rms === 0;
+
+      const result = await db.prepare(`
+        INSERT INTO diagnostic_logs
+          (asset_id, device_id, recorded_by, timestamp, rms_accel, peak_g, crest_factor, kurtosis, sound_db, snapshot_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        assetIdStr,
+        String(device_id).trim().slice(0, 64),
+        actor?.sub ?? null,
+        String(timestamp),
+        rmsNum,
+        Number(peak_g),
+        Number(crest_factor),
+        kurtosis != null ? Number(kurtosis) : null,
+        Number(sound_db),
+        snapshot_url != null ? String(snapshot_url) : null,
+      ).run();
+
+      const logId = result.meta.last_row_id;
+      let baselineEstablished = false;
+      let baselineDeferred    = false;
+
+      if (isFirstReading) {
+        if (rmsNum > NOISE_FLOOR_RMS) {
+          await db.prepare('UPDATE assets SET baseline_rms = ?, baseline_set_at = ? WHERE id = ?')
+            .bind(rmsNum, new Date().toISOString(), assetIdStr).run();
+          baselineEstablished = true;
+        } else {
+          baselineDeferred = true;
+        }
+      }
+
+      const baseline = baselineEstablished ? rmsNum : asset.baseline_rms;
+      const kurtNum  = kurtosis != null ? Number(kurtosis) : null;
+      const { status, ratio, alerts } = assessHealth(
+        rmsNum, baseline, Number(crest_factor), kurtNum, Number(sound_db),
+      );
+
+      await log(db, actor?.sub ?? 'wand', 'create', `diagnostic:${assetIdStr}`, { log_id: logId }, ip);
+
+      return json({
+        ok: true, log_id: logId,
+        status: baselineEstablished ? 'baseline_established'
+          : baselineDeferred ? 'baseline_deferred'
+          : status,
+        baseline_established: baselineEstablished,
+        baseline_deferred:    baselineDeferred,
+        assessment: {
+          rms_ratio:    parseFloat(ratio.toFixed(3)),
+          baseline_rms: parseFloat(baseline.toFixed(4)),
+          alerts: baselineDeferred
+            ? [`Reading (${rmsNum.toFixed(4)}g) is at the sensor noise floor — confirm machine is running and take another reading.`]
+            : alerts,
+        },
+      }, 201, origin);
+    }
+
+    // ── GET /api/diagnostics/recent ───────────────────────────────────────────
+    // Last N readings across ALL measurable assets — one call for audit trail.
+    if (method === 'GET' && path === '/api/diagnostics/recent') {
+      const limit = Math.min(Number(url.searchParams.get('limit') ?? '30'), 100);
+
+      const { results } = await db.prepare(`
+        SELECT
+          dl.id, dl.asset_id, dl.timestamp,
+          dl.rms_accel, dl.peak_g, dl.crest_factor, dl.kurtosis, dl.sound_db,
+          a.label AS asset_label, a.baseline_rms
+        FROM diagnostic_logs dl
+        JOIN assets a ON a.id = dl.asset_id
+        WHERE a.is_measurable = 1
+        ORDER BY dl.timestamp DESC
+        LIMIT ?
+      `).bind(limit).all();
+
+      // Breadcrumbs in one memory pass — no per-row queries
+      const { results: allNodes } = await db.prepare(
+        'SELECT id, parent_id, label FROM assets'
+      ).all<{ id: string; parent_id: string | null; label: string }>();
+      const byId = new Map(allNodes.map(n => [n.id, n]));
+
+      const rows = (results as Array<{
+        id: number; asset_id: string; timestamp: string;
+        rms_accel: number; peak_g: number; crest_factor: number;
+        kurtosis: number | null; sound_db: number;
+        asset_label: string; baseline_rms: number;
+      }>).map(r => {
+        const node = byId.get(r.asset_id);
+        const crumbs: string[] = [];
+        let cur = node?.parent_id ? byId.get(node.parent_id) : undefined;
+        while (cur) { crumbs.unshift(cur.label); cur = cur.parent_id ? byId.get(cur.parent_id) : undefined; }
+        return { ...r, breadcrumb_path: crumbs.join(' / ') };
+      });
+
+      return json({ readings: rows, count: rows.length }, 200, origin);
+    }
+
+    // ── GET /api/diagnostics ──────────────────────────────────────────────────
+    if (method === 'GET' && path === '/api/diagnostics') {
+      const assetId = url.searchParams.get('asset_id') ?? url.searchParams.get('point_id');
+      const limit   = Math.min(Number(url.searchParams.get('limit')  ?? '50'), 500);
+      const offset  = Math.max(Number(url.searchParams.get('offset') ?? '0'),  0);
+      if (!assetId) return err('asset_id query param is required', 400, origin);
+      const { results } = await db.prepare(`
+        SELECT * FROM diagnostic_logs WHERE asset_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?
+      `).bind(assetId, limit, offset).all();
+      return json({ readings: results, count: results.length, limit, offset }, 200, origin);
+    }
+
+    // ── END CONDITION MONITORING ──────────────────────────────────────────────
 
     return err('Not found', 404, origin);
   },
