@@ -1,6 +1,6 @@
 /**
  * Operum — Cloudflare Worker (worker.ts)
- * v1.0 — Register module: employees + asset tree + documents
+ * v1.1 — Register + Safety (Toolbox Talks, SWP, BBS)
  *
  * Endpoints
  * ─────────────────────────────────────────────────────────────────────────────
@@ -33,6 +33,21 @@
  * GET  /api/talks/:id                      single talk with full attendance list
  * POST /api/talks/:id/attend              add attendees to existing talk
  * PATCH /api/talks/:id/attend/:emp_id     mark attendee as signed
+ *
+ * ── Safe Work Procedures ──────────────────────────────────────────────────────
+ * GET  /api/assets/:id/swps               list SWPs for an asset (approved + draft)
+ * POST /api/assets/:id/swps               create SWP on an asset
+ * GET  /api/swps/:id                      single SWP with full step list
+ * PATCH /api/swps/:id                     update SWP title / status
+ * POST /api/swps/:id/steps                add a step to a SWP
+ * PATCH /api/swps/:id/steps/:stepId       update a step
+ * DELETE /api/swps/:id/steps/:stepId      remove a step
+ *
+ * ── BBS Observations ─────────────────────────────────────────────────────────
+ * GET  /api/bbs                           list observations (?asset_id= &status= &observer_id= &limit=)
+ * POST /api/bbs                           create observation + step ratings in one call
+ * GET  /api/bbs/:id                       single observation with SWP steps + ratings
+ * PATCH /api/bbs/:id                      close observation, add outcome/followup
  *
  * ── Condition Monitoring (DiagnosticWand add-on) ─────────────────────────────
  * GET  /api/assets/measurable              flat list of measurable nodes with health status
@@ -1054,6 +1069,498 @@ export default {
     }
 
     // ── END TOOLBOX TALKS ─────────────────────────────────────────────────────
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // SAFE WORK PROCEDURES
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── GET /api/assets/:id/swps ──────────────────────────────────────────────
+    // List all SWPs on one asset. Returns draft + approved by default.
+    // ?status=approved returns only approved SWPs (used by BBS observation picker).
+    const assetSwpsMatch = path.match(/^\/api\/assets\/([^/]+)\/swps$/);
+    if (assetSwpsMatch) {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+      const assetId     = decodeURIComponent(assetSwpsMatch[1]);
+      const statusFilter = url.searchParams.get('status') || null;
+
+      const asset = await db.prepare('SELECT id FROM assets WHERE id = ?').bind(assetId).first();
+      if (!asset) return err('Asset not found', 404, origin);
+
+      let sql = `
+        SELECT s.id, s.title, s.status, s.approved_at,
+               e.name AS approved_by_name,
+               c.name AS created_by_name,
+               s.created_at, s.updated_at,
+               COUNT(st.id) AS step_count
+        FROM swps s
+        LEFT JOIN employees e ON e.id = s.approved_by
+        LEFT JOIN employees c ON c.id = s.created_by
+        LEFT JOIN swp_steps st ON st.swp_id = s.id
+        WHERE s.asset_id = ?
+      `;
+      const bindings: unknown[] = [assetId];
+
+      if (statusFilter) { sql += ` AND s.status = ?`; bindings.push(statusFilter); }
+      sql += ` GROUP BY s.id ORDER BY s.created_at DESC`;
+
+      const { results } = await db.prepare(sql).bind(...bindings).all();
+      return json({ swps: results }, 200, origin);
+    }
+
+    if (assetSwpsMatch && method === 'POST') {
+      // handled below in the POST block — regex match above covers both GET and POST
+    }
+
+    // ── POST /api/assets/:id/swps ─────────────────────────────────────────────
+    // Create a new SWP on an asset. Body: { title, steps?: Step[] }
+    // steps is optional on creation — steps can be added via POST /api/swps/:id/steps.
+    // Only safety_manager or admin can create; supervisor can create drafts.
+    const assetSwpsPostMatch = path.match(/^\/api\/assets\/([^/]+)\/swps$/);
+    if (assetSwpsPostMatch && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const assetId = decodeURIComponent(assetSwpsPostMatch[1]);
+
+      const asset = await db.prepare('SELECT id FROM assets WHERE id = ?').bind(assetId).first();
+      if (!asset) return err('Asset not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        title?: string;
+        steps?: Array<{ description: string; hazards?: string[]; ppe_required?: string[]; precautions?: string }>;
+      };
+      if (!b.title?.trim()) return err('title is required', 400, origin);
+
+      // Generate ID: SWP-YYYY-NNN sequential within year
+      const year     = new Date().getFullYear().toString();
+      const countRow = await db.prepare(
+        `SELECT COUNT(*) AS n FROM swps WHERE id LIKE ?`
+      ).bind(`SWP-${year}-%`).first<{ n: number }>();
+      const seq = String((countRow?.n ?? 0) + 1).padStart(3, '0');
+      const id  = `SWP-${year}-${seq}`;
+
+      await db.prepare(`
+        INSERT INTO swps (id, asset_id, title, status, created_by)
+        VALUES (?, ?, ?, 'draft', ?)
+      `).bind(id, assetId, b.title.trim(), actor.sub).run();
+
+      // Optional inline steps
+      if (b.steps?.length) {
+        const stmts = b.steps.map((step, i) =>
+          db.prepare(`
+            INSERT INTO swp_steps (swp_id, step_order, description, hazards, ppe_required, precautions)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(
+            id,
+            (i + 1) * 10,   // 10, 20, 30 — gaps allow reorder without renumbering
+            step.description.trim(),
+            JSON.stringify(step.hazards ?? []),
+            JSON.stringify(step.ppe_required ?? []),
+            step.precautions?.trim() ?? null,
+          )
+        );
+        await db.batch(stmts);
+      }
+
+      await log(db, actor.sub, 'create', `swp:${id}`, { asset_id: assetId, title: b.title }, ip);
+      return json({ id }, 201, origin);
+    }
+
+    // ── GET /api/swps/:id ─────────────────────────────────────────────────────
+    // Single SWP with full ordered step list.
+    const swpDetailMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)$/);
+    if (swpDetailMatch && method === 'GET') {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+      const swpId = swpDetailMatch[1];
+
+      const swp = await db.prepare(`
+        SELECT s.*, a.label AS asset_label, a.id AS asset_id,
+               e.name AS approved_by_name, c.name AS created_by_name
+        FROM swps s
+        LEFT JOIN assets a ON a.id = s.asset_id
+        LEFT JOIN employees e ON e.id = s.approved_by
+        LEFT JOIN employees c ON c.id = s.created_by
+        WHERE s.id = ?
+      `).bind(swpId).first();
+      if (!swp) return err('SWP not found', 404, origin);
+
+      const { results: steps } = await db.prepare(`
+        SELECT * FROM swp_steps WHERE swp_id = ? ORDER BY step_order ASC
+      `).bind(swpId).all();
+
+      await log(db, actor.sub, 'view', `swp:${swpId}`, null, ip);
+      return json({ swp, steps }, 200, origin);
+    }
+
+    // ── PATCH /api/swps/:id ───────────────────────────────────────────────────
+    // Update SWP title or status. Approving sets approved_by + approved_at.
+    // Archiving a SWP that has open BBS observations is blocked.
+    if (swpDetailMatch && method === 'PATCH') {
+      if (!can(actor.role, ['admin','safety_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const swpId = swpDetailMatch[1];
+
+      const swp = await db.prepare('SELECT id, status FROM swps WHERE id = ?').bind(swpId).first<{ id: string; status: string }>();
+      if (!swp) return err('SWP not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as { title?: string; status?: string };
+
+      // Block archive if open BBS observations reference this SWP
+      if (b.status === 'archived') {
+        const openObs = await db.prepare(
+          `SELECT COUNT(*) AS n FROM bbs_observations WHERE swp_id = ? AND status = 'open'`
+        ).bind(swpId).first<{ n: number }>();
+        if ((openObs?.n ?? 0) > 0) return err('Cannot archive — SWP has open BBS observations', 409, origin);
+      }
+
+      const now = new Date().toISOString();
+      let approvedBy: string | null = null;
+      let approvedAt: string | null = null;
+
+      if (b.status === 'approved') {
+        approvedBy = actor.sub;
+        approvedAt = now;
+      }
+
+      await db.prepare(`
+        UPDATE swps SET
+          title      = COALESCE(?, title),
+          status     = COALESCE(?, status),
+          approved_by = CASE WHEN ? IS NOT NULL THEN ? ELSE approved_by END,
+          approved_at = CASE WHEN ? IS NOT NULL THEN ? ELSE approved_at END,
+          updated_at = ?
+        WHERE id = ?
+      `).bind(
+        b.title?.trim() ?? null,
+        b.status ?? null,
+        approvedBy, approvedBy,
+        approvedAt, approvedAt,
+        now,
+        swpId,
+      ).run();
+
+      await log(db, actor.sub, 'update', `swp:${swpId}`, { status: b.status }, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── POST /api/swps/:id/steps ──────────────────────────────────────────────
+    // Add one step to a SWP. SWP must be in draft status.
+    // Body: { description, hazards?, ppe_required?, precautions?, step_order? }
+    const swpStepsMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)\/steps$/);
+    if (swpStepsMatch && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const swpId = swpStepsMatch[1];
+
+      const swp = await db.prepare('SELECT id, status FROM swps WHERE id = ?').bind(swpId).first<{ id: string; status: string }>();
+      if (!swp)               return err('SWP not found', 404, origin);
+      if (swp.status !== 'draft') return err('Steps can only be added to a draft SWP', 409, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        description?: string; hazards?: string[]; ppe_required?: string[];
+        precautions?: string; step_order?: number;
+      };
+      if (!b.description?.trim()) return err('description is required', 400, origin);
+
+      // Auto-assign step_order as max + 10 if not provided
+      let order = b.step_order ?? null;
+      if (order == null) {
+        const maxRow = await db.prepare(
+          `SELECT MAX(step_order) AS m FROM swp_steps WHERE swp_id = ?`
+        ).bind(swpId).first<{ m: number | null }>();
+        order = (maxRow?.m ?? 0) + 10;
+      }
+
+      const result = await db.prepare(`
+        INSERT INTO swp_steps (swp_id, step_order, description, hazards, ppe_required, precautions)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        swpId,
+        order,
+        b.description.trim(),
+        JSON.stringify(b.hazards ?? []),
+        JSON.stringify(b.ppe_required ?? []),
+        b.precautions?.trim() ?? null,
+      ).run();
+
+      await log(db, actor.sub, 'create', `swp:${swpId}/step`, { step_order: order }, ip);
+      return json({ id: result.meta.last_row_id }, 201, origin);
+    }
+
+    // ── PATCH /api/swps/:id/steps/:stepId ────────────────────────────────────
+    // Update one step. SWP must be in draft status.
+    const swpStepEditMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)\/steps\/(\d+)$/);
+    if (swpStepEditMatch && method === 'PATCH') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const swpId  = swpStepEditMatch[1];
+      const stepId = Number(swpStepEditMatch[2]);
+
+      const swp = await db.prepare('SELECT id, status FROM swps WHERE id = ?').bind(swpId).first<{ id: string; status: string }>();
+      if (!swp)               return err('SWP not found', 404, origin);
+      if (swp.status !== 'draft') return err('Steps can only be edited on a draft SWP', 409, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        description?: string; hazards?: string[]; ppe_required?: string[];
+        precautions?: string; step_order?: number;
+      };
+
+      const changes = await db.prepare(`
+        UPDATE swp_steps SET
+          description  = COALESCE(?, description),
+          hazards      = COALESCE(?, hazards),
+          ppe_required = COALESCE(?, ppe_required),
+          precautions  = COALESCE(?, precautions),
+          step_order   = COALESCE(?, step_order)
+        WHERE id = ? AND swp_id = ?
+      `).bind(
+        b.description?.trim()           ?? null,
+        b.hazards    ? JSON.stringify(b.hazards)      : null,
+        b.ppe_required ? JSON.stringify(b.ppe_required) : null,
+        b.precautions?.trim()           ?? null,
+        b.step_order                    ?? null,
+        stepId, swpId,
+      ).run();
+
+      if (!changes.meta.changes) return err('Step not found', 404, origin);
+      await log(db, actor.sub, 'update', `swp:${swpId}/step:${stepId}`, null, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── DELETE /api/swps/:id/steps/:stepId ───────────────────────────────────
+    // Remove one step. SWP must be in draft status.
+    // Blocked if any BBS observation has rated this step.
+    if (swpStepEditMatch && method === 'DELETE') {
+      if (!can(actor.role, ['admin','safety_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const swpId  = swpStepEditMatch[1];
+      const stepId = Number(swpStepEditMatch[2]);
+
+      const swp = await db.prepare('SELECT id, status FROM swps WHERE id = ?').bind(swpId).first<{ id: string; status: string }>();
+      if (!swp)               return err('SWP not found', 404, origin);
+      if (swp.status !== 'draft') return err('Steps can only be removed from a draft SWP', 409, origin);
+
+      const rated = await db.prepare(
+        `SELECT COUNT(*) AS n FROM bbs_step_ratings WHERE swp_step_id = ?`
+      ).bind(stepId).first<{ n: number }>();
+      if ((rated?.n ?? 0) > 0) return err('Cannot remove — step has BBS observation ratings against it', 409, origin);
+
+      await db.prepare(`DELETE FROM swp_steps WHERE id = ? AND swp_id = ?`).bind(stepId, swpId).run();
+      await log(db, actor.sub, 'delete', `swp:${swpId}/step:${stepId}`, null, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── END SAFE WORK PROCEDURES ──────────────────────────────────────────────
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // BBS OBSERVATIONS
+    // ══════════════════════════════════════════════════════════════════════════
+
+    // ── GET /api/bbs ──────────────────────────────────────────────────────────
+    // List observations. Filters: ?asset_id= &status= &observer_id= &limit=
+    if (method === 'GET' && path === '/api/bbs') {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+
+      const assetId    = url.searchParams.get('asset_id')    || null;
+      const statusF    = url.searchParams.get('status')      || null;
+      const observerId = url.searchParams.get('observer_id') || null;
+      const limit      = Math.min(Number(url.searchParams.get('limit') ?? '50'), 200);
+
+      let sql = `
+        SELECT
+          o.id, o.asset_id, o.swp_id, o.observed_person, o.area, o.shift,
+          o.observed_at, o.status, o.conversation_held, o.followup_required,
+          o.followup_notes, o.closed_at, o.created_at,
+          a.label  AS asset_label,
+          s.title  AS swp_title,
+          e.name   AS observed_by_name,
+          COUNT(r.id) AS step_count,
+          SUM(CASE WHEN r.rating = 'at_risk' THEN 1 ELSE 0 END) AS at_risk_count
+        FROM bbs_observations o
+        LEFT JOIN assets a ON a.id = o.asset_id
+        LEFT JOIN swps s   ON s.id = o.swp_id
+        LEFT JOIN employees e ON e.id = o.observed_by
+        LEFT JOIN bbs_step_ratings r ON r.observation_id = o.id
+        WHERE 1=1
+      `;
+      const bindings: unknown[] = [];
+
+      if (assetId)    { sql += ` AND o.asset_id = ?`;    bindings.push(assetId); }
+      if (statusF)    { sql += ` AND o.status = ?`;      bindings.push(statusF); }
+      if (observerId) { sql += ` AND o.observed_by = ?`; bindings.push(observerId); }
+
+      sql += ` GROUP BY o.id ORDER BY o.observed_at DESC LIMIT ?`;
+      bindings.push(limit);
+
+      const { results } = await db.prepare(sql).bind(...bindings).all();
+      return json({ observations: results }, 200, origin);
+    }
+
+    // ── POST /api/bbs ─────────────────────────────────────────────────────────
+    // Create one complete observation including all step ratings in one call.
+    // The SWP must be approved. Ratings must cover all non-archived steps.
+    // Body: {
+    //   asset_id, swp_id, observed_person?, area?, shift?, observed_at,
+    //   conversation_held?, followup_required?, followup_notes?,
+    //   ratings: [{ swp_step_id, rating, comment? }]
+    // }
+    if (method === 'POST' && path === '/api/bbs') {
+      // Observers: admin, safety_manager, supervisor, artisan
+      if (!can(actor.role, ['admin','safety_manager','supervisor','artisan'] as Role[])) return err('Forbidden', 403, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        asset_id?: string; swp_id?: string; observed_person?: string;
+        area?: string; shift?: string; observed_at?: string;
+        conversation_held?: boolean; followup_required?: boolean;
+        followup_notes?: string;
+        ratings?: Array<{ swp_step_id: number; rating: string; comment?: string }>;
+      };
+
+      if (!b.asset_id)    return err('asset_id is required', 400, origin);
+      if (!b.swp_id)      return err('swp_id is required', 400, origin);
+      if (!b.observed_at) return err('observed_at is required', 400, origin);
+      if (!b.ratings?.length) return err('ratings array is required and must not be empty', 400, origin);
+      if (b.shift && !['day','night'].includes(b.shift)) return err('shift must be day or night', 400, origin);
+
+      // Validate asset exists
+      const asset = await db.prepare('SELECT id FROM assets WHERE id = ?').bind(b.asset_id).first();
+      if (!asset) return err('Asset not found', 404, origin);
+
+      // Validate SWP exists on this asset and is approved
+      const swp = await db.prepare(
+        `SELECT id, status FROM swps WHERE id = ? AND asset_id = ?`
+      ).bind(b.swp_id, b.asset_id).first<{ id: string; status: string }>();
+      if (!swp)                   return err('SWP not found on this asset', 404, origin);
+      if (swp.status !== 'approved') return err('Only approved SWPs can be used in an observation', 409, origin);
+
+      // Validate all step IDs belong to this SWP
+      const { results: swpSteps } = await db.prepare(
+        `SELECT id FROM swp_steps WHERE swp_id = ?`
+      ).bind(b.swp_id).all<{ id: number }>();
+      const validStepIds = new Set(swpSteps.map((s: { id: number }) => s.id));
+
+      for (const r of b.ratings) {
+        if (!validStepIds.has(r.swp_step_id)) {
+          return err(`Step ${r.swp_step_id} does not belong to SWP ${b.swp_id}`, 400, origin);
+        }
+        if (!['safe','at_risk','not_applicable'].includes(r.rating)) {
+          return err(`Invalid rating "${r.rating}" — must be safe, at_risk, or not_applicable`, 400, origin);
+        }
+      }
+
+      // Insert observation
+      const obsResult = await db.prepare(`
+        INSERT INTO bbs_observations
+          (asset_id, swp_id, observed_by, observed_person, area, shift,
+           observed_at, conversation_held, followup_required, followup_notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        b.asset_id,
+        b.swp_id,
+        actor.sub,
+        b.observed_person?.trim() ?? null,
+        b.area?.trim()            ?? null,
+        b.shift                   ?? null,
+        b.observed_at,
+        b.conversation_held ? 1 : 0,
+        b.followup_required ? 1 : 0,
+        b.followup_notes?.trim()  ?? null,
+      ).run();
+
+      const obsId = obsResult.meta.last_row_id as number;
+
+      // Insert all step ratings in one batch
+      const ratingStmts = b.ratings.map(r =>
+        db.prepare(`
+          INSERT INTO bbs_step_ratings (observation_id, swp_step_id, rating, comment)
+          VALUES (?, ?, ?, ?)
+        `).bind(obsId, r.swp_step_id, r.rating, r.comment?.trim() ?? null)
+      );
+      await db.batch(ratingStmts);
+
+      await log(db, actor.sub, 'create', `bbs:${obsId}`, { asset_id: b.asset_id, swp_id: b.swp_id }, ip);
+      return json({ id: obsId }, 201, origin);
+    }
+
+    // ── GET /api/bbs/:id ──────────────────────────────────────────────────────
+    // Single observation with SWP step details and ratings side-by-side.
+    const bbsDetailMatch = path.match(/^\/api\/bbs\/(\d+)$/);
+    if (bbsDetailMatch && method === 'GET') {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+      const obsId = Number(bbsDetailMatch[1]);
+
+      const obs = await db.prepare(`
+        SELECT o.*,
+               a.label AS asset_label,
+               s.title AS swp_title,
+               e.name  AS observed_by_name
+        FROM bbs_observations o
+        LEFT JOIN assets     a ON a.id = o.asset_id
+        LEFT JOIN swps       s ON s.id = o.swp_id
+        LEFT JOIN employees  e ON e.id = o.observed_by
+        WHERE o.id = ?
+      `).bind(obsId).first();
+      if (!obs) return err('Observation not found', 404, origin);
+
+      // Steps with their rating for this observation joined in one query
+      const { results: stepRatings } = await db.prepare(`
+        SELECT
+          st.id AS step_id, st.step_order, st.description, st.hazards, st.ppe_required, st.precautions,
+          r.id  AS rating_id, r.rating, r.comment
+        FROM swp_steps st
+        LEFT JOIN bbs_step_ratings r
+          ON r.swp_step_id = st.id AND r.observation_id = ?
+        WHERE st.swp_id = ?
+        ORDER BY st.step_order ASC
+      `).bind(obsId, (obs as Record<string,unknown>).swp_id).all();
+
+      await log(db, actor.sub, 'view', `bbs:${obsId}`, null, ip);
+      return json({ observation: obs, step_ratings: stepRatings }, 200, origin);
+    }
+
+    // ── PATCH /api/bbs/:id ────────────────────────────────────────────────────
+    // Close an observation and/or update outcome fields.
+    // Body: { status?, conversation_held?, followup_required?, followup_notes? }
+    // Closing sets closed_at to now. Re-opening is not permitted.
+    if (bbsDetailMatch && method === 'PATCH') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor','artisan'] as Role[])) return err('Forbidden', 403, origin);
+      const obsId = Number(bbsDetailMatch[1]);
+
+      const obs = await db.prepare(
+        'SELECT id, observed_by, status FROM bbs_observations WHERE id = ?'
+      ).bind(obsId).first<{ id: number; observed_by: string; status: string }>();
+      if (!obs) return err('Observation not found', 404, origin);
+
+      // Only the observer or a manager can close an observation
+      const isOwner   = obs.observed_by === actor.sub;
+      const isManager = can(actor.role, ['admin','safety_manager','supervisor'] as Role[]);
+      if (!isOwner && !isManager) return err('Forbidden — only the observer or a manager can update this observation', 403, origin);
+      if (obs.status === 'closed') return err('Observation is already closed', 409, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        status?: string; conversation_held?: boolean;
+        followup_required?: boolean; followup_notes?: string;
+      };
+
+      const now      = new Date().toISOString();
+      const closing  = b.status === 'closed';
+
+      await db.prepare(`
+        UPDATE bbs_observations SET
+          status             = COALESCE(?, status),
+          conversation_held  = COALESCE(?, conversation_held),
+          followup_required  = COALESCE(?, followup_required),
+          followup_notes     = COALESCE(?, followup_notes),
+          closed_at          = CASE WHEN ? = 1 THEN ? ELSE closed_at END
+        WHERE id = ?
+      `).bind(
+        b.status                                  ?? null,
+        b.conversation_held != null ? (b.conversation_held ? 1 : 0) : null,
+        b.followup_required != null ? (b.followup_required ? 1 : 0) : null,
+        b.followup_notes?.trim()                  ?? null,
+        closing ? 1 : 0, now,
+        obsId,
+      ).run();
+
+      await log(db, actor.sub, 'update', `bbs:${obsId}`, { status: b.status }, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── END BBS OBSERVATIONS ──────────────────────────────────────────────────
 
     // ══════════════════════════════════════════════════════════════════════════
     // CONDITION MONITORING (DiagnosticWand — add-on module)
