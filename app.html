@@ -724,6 +724,129 @@ body::before {
 .suffix-tag-pattern { background: rgba(201,148,60,.15); color: var(--md-gold); }
 .suffix-tag-library { background: rgba(122,109,88,.12); color: var(--md-muted); }
 
+/* ── BBS Observations ───────────────────────────────────────────────────────── */
+.bbs-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; flex-shrink: 0;
+  border-bottom: 1px solid var(--md-border);
+}
+.bbs-toolbar-filters { display: flex; gap: 6px; flex: 1; overflow-x: auto; scrollbar-width: none; }
+.bbs-toolbar-filters::-webkit-scrollbar { display: none; }
+.bbs-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+.bbs-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--md-border);
+  transition: background .15s; -webkit-tap-highlight-color: transparent;
+}
+.bbs-row:hover { background: var(--md-surface); }
+.bbs-row:last-child { border-bottom: none; }
+.bbs-row-icon {
+  flex-shrink: 0; width: 40px; height: 40px;
+  border-radius: var(--md-radius);
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  display: flex; align-items: center; justify-content: center;
+}
+.bbs-row-icon.has-risk { border-color: var(--md-danger); background: rgba(201,76,76,.08); }
+.bbs-row-icon.all-safe { border-color: var(--md-success); background: rgba(76,175,122,.08); }
+.bbs-row-body { flex: 1; min-width: 0; }
+.bbs-row-title {
+  font-size: .88rem; color: var(--md-cream); margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bbs-row-meta {
+  font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .06em; color: var(--md-muted);
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.bbs-row-right { flex-shrink: 0; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.bbs-risk-pill {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .06em;
+  padding: 2px 7px; border-radius: 20px;
+}
+.bbs-risk-pill.has-risk { background: rgba(201,76,76,.15); color: var(--md-danger); }
+.bbs-risk-pill.all-safe { background: rgba(76,175,122,.12); color: var(--md-success); }
+.bbs-status-dot { width: 7px; height: 7px; border-radius: 50%; }
+.bbs-status-dot.open   { background: var(--md-gold); }
+.bbs-status-dot.closed { background: var(--md-muted); }
+.bbs-detail-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 14px; border-bottom: 1px solid var(--md-border); flex-shrink: 0;
+}
+.bbs-detail-title {
+  font-family: var(--font-brand); font-size: 1rem;
+  color: var(--md-gold-lt); margin-bottom: 4px; letter-spacing: .06em;
+}
+.bbs-detail-meta {
+  font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .06em; color: var(--md-muted);
+  display: flex; flex-wrap: wrap; gap: 8px;
+}
+.bbs-step-list { flex: 1; overflow-y: auto; padding: 4px 0 16px; }
+.bbs-step-row { padding: 12px 20px; border-bottom: 1px solid var(--md-border); }
+.bbs-step-row:last-child { border-bottom: none; }
+.bbs-step-header {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  margin-bottom: 6px;
+}
+.bbs-step-num {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .1em;
+  color: var(--md-gold-dk); flex-shrink: 0; padding-top: 2px;
+}
+.bbs-step-desc { font-size: .85rem; color: var(--md-cream); flex: 1; line-height: 1.5; }
+.bbs-step-rating {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: .6rem;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 20px;
+}
+.bbs-step-rating.safe           { background: rgba(76,175,122,.12); color: var(--md-success); }
+.bbs-step-rating.at_risk        { background: rgba(201,76,76,.15);  color: var(--md-danger); }
+.bbs-step-rating.not_applicable { background: rgba(122,109,88,.12); color: var(--md-muted); }
+.bbs-step-comment {
+  font-size: .8rem; color: var(--md-muted); margin-top: 5px;
+  padding: 6px 10px; background: var(--md-surface);
+  border-left: 2px solid var(--md-danger); border-radius: 0 var(--md-radius) var(--md-radius) 0;
+  line-height: 1.5;
+}
+.bbs-step-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.bbs-step-tag {
+  font-family: var(--font-mono); font-size: .58rem; letter-spacing: .06em;
+  padding: 2px 6px; border-radius: 3px;
+  background: var(--md-panel); color: var(--md-muted); border: 1px solid var(--md-border);
+}
+.bbs-form-section { border-top: 1px solid var(--md-border); padding-top: 14px; margin-top: 4px; }
+.bbs-form-section-title {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .2em;
+  text-transform: uppercase; color: var(--md-gold-dk); margin-bottom: 10px;
+}
+.bbs-rating-row {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 0; border-bottom: 1px solid var(--md-border);
+}
+.bbs-rating-row:last-child { border-bottom: none; }
+.bbs-rating-step-label { font-size: .82rem; color: var(--md-cream); line-height: 1.4; }
+.bbs-rating-controls { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.bbs-rating-btn {
+  flex: 1; min-width: 70px; padding: 6px 8px; border-radius: var(--md-radius);
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  color: var(--md-muted); font-family: var(--font-mono);
+  font-size: .6rem; letter-spacing: .06em; text-transform: uppercase;
+  cursor: pointer; transition: all .15s; text-align: center;
+}
+.bbs-rating-btn.selected-safe           { border-color: var(--md-success); color: var(--md-success); background: rgba(76,175,122,.1); }
+.bbs-rating-btn.selected-at_risk        { border-color: var(--md-danger);  color: var(--md-danger);  background: rgba(201,76,76,.1); }
+.bbs-rating-btn.selected-not_applicable { border-color: var(--md-muted);   color: var(--md-muted); }
+.bbs-comment-input {
+  width: 100%; margin-top: 6px;
+  background: var(--md-panel); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); color: var(--md-cream);
+  font-family: var(--font-ui); font-size: .82rem;
+  padding: 7px 10px; outline: none; resize: none;
+  transition: border-color .2s; display: none;
+}
+.bbs-comment-input:focus { border-color: var(--md-gold-dk); }
+.bbs-comment-input.visible { display: block; }
+
 /* ── Loader ─────────────────────────────────────────────────────────────────── */
 .loader {
   display: flex; align-items: center; justify-content: center;
@@ -888,7 +1011,7 @@ body::before {
       <!-- Safety sub-nav -->
       <div class="safety-subnav">
         <button class="safety-subnav-btn active" onclick="openSafetyView('svTalks')">Toolbox Talks</button>
-        <button class="safety-subnav-btn" onclick="openSafetyView('svBBS')" style="opacity:.45;pointer-events:none;">BBS</button>
+        <button class="safety-subnav-btn" onclick="openSafetyView('svBBS')">BBS</button>
         <button class="safety-subnav-btn" onclick="openSafetyView('svIncidents')" style="opacity:.45;pointer-events:none;">Incidents</button>
         <button class="safety-subnav-btn" onclick="openSafetyView('svRisk')" style="opacity:.45;pointer-events:none;">Risk</button>
         <button class="safety-subnav-btn" onclick="openSafetyView('svPTW')" style="opacity:.45;pointer-events:none;">PTW</button>
@@ -916,12 +1039,21 @@ body::before {
       </div><!-- /svTalks -->
 
       <!-- Stub sub-views for upcoming modules -->
+      <!-- ── BBS Observations sub-view ── -->
       <div class="safety-subview" id="svBBS">
-        <div class="stub-view"><div class="stub-icon">👁️</div>
-          <div class="stub-title">BBS Observations</div>
-          <div class="stub-desc">Behaviour Based Safety observations — Phase 2.</div>
-          <div class="stub-tag">Coming soon</div></div>
-      </div>
+        <div class="bbs-toolbar">
+          <div class="bbs-toolbar-filters" id="bbsFilters">
+            <button class="filter-chip active" data-status="" onclick="filterBBS(this)">All</button>
+            <button class="filter-chip" data-status="open"   onclick="filterBBS(this)">Open</button>
+            <button class="filter-chip" data-status="closed" onclick="filterBBS(this)">Closed</button>
+          </div>
+          <button class="btn btn-gold" style="font-size:.75rem;padding:6px 12px;flex-shrink:0;"
+                  onclick="openNewBBSSheet()">+ New Obs</button>
+        </div>
+        <div class="bbs-list" id="bbsList">
+          <div class="loader"><div class="spin"></div> Loading…</div>
+        </div>
+      </div><!-- /svBBS -->
       <div class="safety-subview" id="svIncidents">
         <div class="stub-view"><div class="stub-icon">🚨</div>
           <div class="stub-title">Incidents & Near-Misses</div>
@@ -942,6 +1074,118 @@ body::before {
       </div>
 
     </div><!-- /modSafety -->
+
+    <!-- ── BBS detail bottom sheet ──────────────────────────────────────────────── -->
+    <div class="modal-backdrop" id="bbsDetailModal" onclick="if(event.target===this)closeBBSDetail()">
+      <div class="modal-sheet" style="display:flex;flex-direction:column;max-height:88vh;">
+        <div class="bbs-detail-header">
+          <div style="flex:1;min-width:0;">
+            <div class="bbs-detail-title" id="bbsDetailTitle">—</div>
+            <div class="bbs-detail-meta" id="bbsDetailMeta"></div>
+          </div>
+          <button class="detail-sheet-close" onclick="closeBBSDetail()">✕</button>
+        </div>
+        <!-- Outcome strip (visible when open) -->
+        <div id="bbsDetailOutcome" style="padding:10px 20px;border-bottom:1px solid var(--md-border);flex-shrink:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        </div>
+        <!-- Step ratings -->
+        <div class="bbs-step-list" id="bbsStepList"></div>
+        <!-- Close action bar -->
+        <div id="bbsCloseBar" style="padding:12px 20px;border-top:1px solid var(--md-border);flex-shrink:0;display:none;">
+          <button class="btn btn-gold" style="width:100%;" onclick="closeBBSObservation()">Mark as Closed</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── New BBS Observation sheet ─────────────────────────────────────────── -->
+    <div class="modal-backdrop" id="newBBSModal" onclick="if(event.target===this)closeNewBBSSheet()">
+      <div class="modal-sheet" style="display:flex;flex-direction:column;max-height:92vh;">
+        <div class="talk-detail-header" style="flex-shrink:0;">
+          <div>
+            <div class="bbs-detail-title">New BBS Observation</div>
+            <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-muted);margin-top:2px;">Select an asset, then select an approved SWP</div>
+          </div>
+          <button class="detail-sheet-close" onclick="closeNewBBSSheet()">✕</button>
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:16px 20px;">
+
+          <!-- Step 1: header fields -->
+          <div class="bbs-form-section" style="border-top:none;padding-top:0;margin-top:0;">
+            <div class="bbs-form-section-title">Observation Details</div>
+
+            <div class="form-field">
+              <label class="form-label">Asset <span style="color:var(--md-danger)">*</span></label>
+              <input class="form-input" id="bbsAssetSearch" type="search"
+                     placeholder="Type to search asset tag or name…" autocomplete="off" spellcheck="false"/>
+              <div id="bbsAssetResults" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);border-radius:var(--md-radius);margin-top:4px;max-height:160px;overflow-y:auto;"></div>
+              <input type="hidden" id="bbsAssetId"/>
+              <div id="bbsAssetChosen" style="display:none;margin-top:6px;padding:6px 10px;background:var(--md-surface);border:1px solid var(--md-gold-dk);border-radius:var(--md-radius);font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);"></div>
+            </div>
+
+            <div class="form-field">
+              <label class="form-label">Safe Work Procedure <span style="color:var(--md-danger)">*</span></label>
+              <select class="form-input" id="bbsSwpSelect" disabled>
+                <option value="">— select an asset first —</option>
+              </select>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="form-field">
+                <label class="form-label">Shift</label>
+                <select class="form-input" id="bbsShift">
+                  <option value="">Not specified</option>
+                  <option value="day">Day</option>
+                  <option value="night">Night</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Date &amp; Time <span style="color:var(--md-danger)">*</span></label>
+                <input class="form-input" id="bbsObservedAt" type="datetime-local"/>
+              </div>
+            </div>
+
+            <div class="form-field">
+              <label class="form-label">Observed person / group <span style="color:var(--md-muted);font-size:.7rem;">(optional — freetext only)</span></label>
+              <input class="form-input" id="bbsObservedPerson" type="text" placeholder="e.g. 2 artisans on conveyor, or leave blank"/>
+            </div>
+
+            <div class="form-field">
+              <label class="form-label">Area note <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <input class="form-input" id="bbsArea" type="text" placeholder="e.g. Bay C, west side"/>
+            </div>
+          </div>
+
+          <!-- Step 2: per-step ratings — rendered after SWP is selected -->
+          <div class="bbs-form-section" id="bbsRatingsSection" style="display:none;">
+            <div class="bbs-form-section-title">Step Ratings <span style="color:var(--md-danger)">*</span></div>
+            <div id="bbsRatingRows"></div>
+          </div>
+
+          <!-- Step 3: outcome -->
+          <div class="bbs-form-section" id="bbsOutcomeSection" style="display:none;">
+            <div class="bbs-form-section-title">Outcome</div>
+            <div class="form-field" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <input type="checkbox" id="bbsConvHeld" style="width:16px;height:16px;accent-color:var(--md-gold);flex-shrink:0;"/>
+              <label for="bbsConvHeld" style="font-size:.85rem;color:var(--md-cream);cursor:pointer;">Feedback conversation held with person at time of observation</label>
+            </div>
+            <div class="form-field" style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+              <input type="checkbox" id="bbsFollowup" style="width:16px;height:16px;accent-color:var(--md-gold);flex-shrink:0;"/>
+              <label for="bbsFollowup" style="font-size:.85rem;color:var(--md-cream);cursor:pointer;">Follow-up action required</label>
+            </div>
+            <div class="form-field" id="bbsFollowupNotesWrap" style="display:none;">
+              <label class="form-label">Follow-up notes</label>
+              <textarea class="form-input" id="bbsFollowupNotes" rows="3"
+                        placeholder="Describe the required action…" style="resize:none;"></textarea>
+            </div>
+          </div>
+
+        </div>
+        <div style="padding:12px 20px;border-top:1px solid var(--md-border);flex-shrink:0;display:flex;gap:8px;">
+          <button class="btn btn-outline" style="flex:1;" onclick="closeNewBBSSheet()">Cancel</button>
+          <button class="btn btn-gold"    style="flex:2;" onclick="submitBBSObservation()">Submit Observation</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ── Talk detail bottom sheet ───────────────────────────────────────────── -->
     <div class="modal-backdrop" id="talkDetailModal" onclick="if(event.target===this)closeTalkDetail()">
@@ -2306,6 +2550,394 @@ function openSafetyView(viewId) {
     if (b.getAttribute('onclick')?.includes(viewId)) b.classList.add('active');
   });
   if (viewId === 'svTalks') loadTalksList();
+  if (viewId === 'svBBS')   loadBBSList();
+}
+
+// ─── BBS Observations ─────────────────────────────────────────────────────────
+
+let bbsCache       = [];
+let bbsStatusFilter = '';
+let currentBBSObs  = null;   // full observation object currently open in detail sheet
+let bbsSwpSteps    = [];     // steps for the SWP selected in the new-obs form
+let bbsRatings     = {};     // { [swp_step_id]: { rating, comment } }
+let bbsAssetDebounce = null;
+
+async function loadBBSList() {
+  const list = $('bbsList');
+  list.innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
+  try {
+    const params = new URLSearchParams({ limit: '100' });
+    if (bbsStatusFilter) params.set('status', bbsStatusFilter);
+    const data = await apiFetch(`/bbs?${params}`);
+    bbsCache = data.observations || [];
+    renderBBSList(bbsCache);
+  } catch (e) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--md-danger);font-size:.85rem;">Failed to load — ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderBBSList(obs) {
+  const list = $('bbsList');
+  if (!obs.length) {
+    list.innerHTML = `<div style="padding:40px 16px;text-align:center;">
+      <div style="font-size:2rem;margin-bottom:12px;opacity:.2;">👁</div>
+      <div style="font-family:var(--font-brand);color:var(--md-gold-lt);margin-bottom:6px;">No observations recorded</div>
+      <div style="color:var(--md-muted);font-size:.82rem;">Tap <strong style="color:var(--md-cream)">+ New Obs</strong> to record one.</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = '';
+  obs.forEach(o => {
+    const atRisk    = o.at_risk_count > 0;
+    const iconClass = atRisk ? 'has-risk' : 'all-safe';
+    const iconSvg   = atRisk
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="var(--md-danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="none" stroke="var(--md-success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const d         = new Date(o.observed_at);
+    const dateStr   = d.toLocaleDateString('en-ZA', { day:'2-digit', month:'short' });
+    const timeStr   = d.toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
+    const shiftTxt  = o.shift ? ` · ${o.shift} shift` : '';
+    const row = document.createElement('div');
+    row.className = 'bbs-row';
+    row.innerHTML = `
+      <div class="bbs-row-icon ${iconClass}">${iconSvg}</div>
+      <div class="bbs-row-body">
+        <div class="bbs-row-title">${escHtml(o.swp_title || '—')}</div>
+        <div class="bbs-row-meta">
+          <span>${escHtml(o.asset_label || o.asset_id)}</span>
+          <span>${dateStr} ${timeStr}${shiftTxt}</span>
+          ${o.observed_by_name ? `<span>by ${escHtml(o.observed_by_name)}</span>` : ''}
+        </div>
+      </div>
+      <div class="bbs-row-right">
+        <div class="bbs-status-dot ${o.status}"></div>
+        ${o.step_count > 0
+          ? `<div class="bbs-risk-pill ${atRisk ? 'has-risk' : 'all-safe'}">${atRisk ? o.at_risk_count + ' at-risk' : 'all safe'}</div>`
+          : ''}
+      </div>`;
+    row.addEventListener('click', () => openBBSDetail(o.id));
+    list.appendChild(row);
+  });
+}
+
+function filterBBS(btn) {
+  document.querySelectorAll('#bbsFilters .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  bbsStatusFilter = btn.dataset.status;
+  loadBBSList();
+}
+
+// ─── BBS detail sheet ─────────────────────────────────────────────────────────
+
+async function openBBSDetail(obsId) {
+  $('bbsDetailModal').classList.add('open');
+  $('bbsDetailTitle').textContent = '—';
+  $('bbsDetailMeta').innerHTML    = '';
+  $('bbsStepList').innerHTML      = '<div class="loader"><div class="spin"></div> Loading…</div>';
+  $('bbsCloseBar').style.display  = 'none';
+
+  try {
+    const data  = await apiFetch(`/bbs/${obsId}`);
+    const obs   = data.observation;
+    const steps = data.step_ratings || [];
+    currentBBSObs = obs;
+
+    $('bbsDetailTitle').textContent = obs.swp_title || '—';
+
+    const d       = new Date(obs.observed_at);
+    const dateStr = d.toLocaleDateString('en-ZA', { day:'2-digit', month:'short', year:'numeric' });
+    const timeStr = d.toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
+    const metaParts = [
+      escHtml(obs.asset_label || obs.asset_id),
+      `${dateStr} ${timeStr}`,
+      obs.shift ? `${obs.shift} shift` : null,
+      obs.observed_by_name ? `Observed by ${escHtml(obs.observed_by_name)}` : null,
+      obs.observed_person ? `Person: ${escHtml(obs.observed_person)}` : null,
+      obs.area ? `Area: ${escHtml(obs.area)}` : null,
+    ].filter(Boolean);
+    $('bbsDetailMeta').innerHTML = metaParts.map(p => `<span>${p}</span>`).join('');
+
+    // Outcome strip
+    const outcomeEl = $('bbsDetailOutcome');
+    const outParts = [];
+    if (obs.conversation_held) outParts.push(`<span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-success);">✓ Conversation held</span>`);
+    if (obs.followup_required) outParts.push(`<span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-warning);">⚠ Follow-up required</span>`);
+    if (obs.followup_notes)    outParts.push(`<span style="font-size:.8rem;color:var(--md-muted);">${escHtml(obs.followup_notes)}</span>`);
+    const statusPill = obs.status === 'open'
+      ? `<span class="badge" style="background:rgba(201,148,60,.12);color:var(--md-gold);border:1px solid var(--md-gold-dk);font-size:.6rem;">Open</span>`
+      : `<span class="badge" style="background:rgba(122,109,88,.12);color:var(--md-muted);border:1px solid var(--md-border);font-size:.6rem;">Closed</span>`;
+    outcomeEl.innerHTML = [statusPill, ...outParts].join('');
+    outcomeEl.style.display = outParts.length || obs.status ? 'flex' : 'none';
+
+    // Step ratings
+    const stepList = $('bbsStepList');
+    if (!steps.length) {
+      stepList.innerHTML = '<div class="empty"><div class="empty-title">No step ratings recorded</div></div>';
+    } else {
+      const sectionLabel = document.createElement('div');
+      sectionLabel.style.cssText = 'padding:10px 20px 4px;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--md-gold-dk);';
+      sectionLabel.textContent   = 'SWP Step Ratings';
+      stepList.innerHTML = '';
+      stepList.appendChild(sectionLabel);
+
+      steps.forEach((step, idx) => {
+        const hazards = JSON.parse(step.hazards || '[]');
+        const ppe     = JSON.parse(step.ppe_required || '[]');
+        const tags    = [...hazards.map(h => escHtml(h)), ...ppe.map(p => escHtml(p))];
+        const ratingClass = step.rating || 'not_applicable';
+        const ratingLabel = { safe: 'Safe', at_risk: 'At Risk', not_applicable: 'N/A', null: '—' }[step.rating] || '—';
+
+        const row = document.createElement('div');
+        row.className = 'bbs-step-row';
+        row.innerHTML = `
+          <div class="bbs-step-header">
+            <span class="bbs-step-num">Step ${idx + 1}</span>
+            <span class="bbs-step-desc">${escHtml(step.description)}</span>
+            ${step.rating ? `<span class="bbs-step-rating ${ratingClass}">${ratingLabel}</span>` : ''}
+          </div>
+          ${step.comment ? `<div class="bbs-step-comment">${escHtml(step.comment)}</div>` : ''}
+          ${tags.length ? `<div class="bbs-step-tags">${tags.map(t => `<span class="bbs-step-tag">${t}</span>`).join('')}</div>` : ''}`;
+        stepList.appendChild(row);
+      });
+    }
+
+    // Show close bar if observation is open and current user is the observer or a manager
+    if (obs.status === 'open') {
+      $('bbsCloseBar').style.display = 'block';
+    }
+
+  } catch (e) {
+    $('bbsStepList').innerHTML = `<div style="padding:24px;text-align:center;color:var(--md-danger);font-size:.85rem;">${escHtml(e.message)}</div>`;
+  }
+}
+
+function closeBBSDetail() {
+  $('bbsDetailModal').classList.remove('open');
+  currentBBSObs = null;
+}
+
+async function closeBBSObservation() {
+  if (!currentBBSObs) return;
+  try {
+    await apiFetch(`/bbs/${currentBBSObs.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'closed' }),
+    });
+    showToast('Observation closed');
+    closeBBSDetail();
+    loadBBSList();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ─── New BBS Observation sheet ────────────────────────────────────────────────
+
+function openNewBBSSheet() {
+  // Reset form
+  $('bbsAssetSearch').value    = '';
+  $('bbsAssetId').value        = '';
+  $('bbsAssetChosen').style.display = 'none';
+  $('bbsAssetResults').style.display = 'none';
+  $('bbsSwpSelect').innerHTML  = '<option value="">— select an asset first —</option>';
+  $('bbsSwpSelect').disabled   = true;
+  $('bbsShift').value          = '';
+  $('bbsObservedAt').value     = new Date().toISOString().slice(0,16);
+  $('bbsObservedPerson').value = '';
+  $('bbsArea').value           = '';
+  $('bbsRatingsSection').style.display = 'none';
+  $('bbsOutcomeSection').style.display = 'none';
+  $('bbsConvHeld').checked     = false;
+  $('bbsFollowup').checked     = false;
+  $('bbsFollowupNotes').value  = '';
+  $('bbsFollowupNotesWrap').style.display = 'none';
+  bbsSwpSteps = [];
+  bbsRatings  = {};
+  $('newBBSModal').classList.add('open');
+}
+
+function closeNewBBSSheet() { $('newBBSModal').classList.remove('open'); }
+
+// Asset search in new-obs form
+$('bbsAssetSearch').addEventListener('input', function () {
+  const q = this.value.trim();
+  clearTimeout(bbsAssetDebounce);
+  if (!q) { $('bbsAssetResults').style.display = 'none'; return; }
+  bbsAssetDebounce = setTimeout(async () => {
+    try {
+      const data = await apiFetch(`/assets?q=${encodeURIComponent(q)}`);
+      const hits  = (data.assets || []).slice(0, 10);
+      const box   = $('bbsAssetResults');
+      if (!hits.length) { box.style.display = 'none'; return; }
+      box.innerHTML = hits.map(a => `
+        <div class="suffix-item" data-id="${escHtml(a.id)}" data-label="${escHtml(a.label)}">
+          <div>
+            <div class="suffix-item-text">${escHtml(a.id)}</div>
+            <div class="suffix-item-desc">${escHtml(a.label)}</div>
+          </div>
+        </div>`).join('');
+      box.querySelectorAll('.suffix-item').forEach(el => {
+        el.addEventListener('click', () => selectBBSAsset(el.dataset.id, el.dataset.label));
+      });
+      box.style.display = 'block';
+    } catch { $('bbsAssetResults').style.display = 'none'; }
+  }, 200);
+});
+
+async function selectBBSAsset(assetId, assetLabel) {
+  $('bbsAssetId').value = assetId;
+  $('bbsAssetSearch').value = '';
+  $('bbsAssetResults').style.display = 'none';
+  $('bbsAssetChosen').textContent  = `${assetId} — ${assetLabel}`;
+  $('bbsAssetChosen').style.display = 'block';
+
+  // Load approved SWPs for this asset
+  $('bbsSwpSelect').innerHTML  = '<option value="">Loading SWPs…</option>';
+  $('bbsSwpSelect').disabled   = true;
+  $('bbsRatingsSection').style.display = 'none';
+  $('bbsOutcomeSection').style.display = 'none';
+  try {
+    const data = await apiFetch(`/assets/${encodeURIComponent(assetId)}/swps?status=approved`);
+    const swps  = data.swps || [];
+    if (!swps.length) {
+      $('bbsSwpSelect').innerHTML = '<option value="">No approved SWPs on this asset</option>';
+      return;
+    }
+    $('bbsSwpSelect').innerHTML = '<option value="">— select a SWP —</option>' +
+      swps.map(s => `<option value="${escHtml(s.id)}">${escHtml(s.title)}</option>`).join('');
+    $('bbsSwpSelect').disabled = false;
+  } catch (e) {
+    $('bbsSwpSelect').innerHTML = `<option value="">Error: ${escHtml(e.message)}</option>`;
+  }
+}
+
+$('bbsSwpSelect').addEventListener('change', async function () {
+  const swpId = this.value;
+  $('bbsRatingsSection').style.display = 'none';
+  $('bbsOutcomeSection').style.display = 'none';
+  bbsSwpSteps = [];
+  bbsRatings  = {};
+  if (!swpId) return;
+
+  try {
+    const data   = await apiFetch(`/swps/${encodeURIComponent(swpId)}`);
+    bbsSwpSteps  = data.steps || [];
+    bbsRatings   = {};
+    renderBBSRatingRows();
+    $('bbsRatingsSection').style.display = 'block';
+    $('bbsOutcomeSection').style.display = 'block';
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+});
+
+$('bbsFollowup').addEventListener('change', function () {
+  $('bbsFollowupNotesWrap').style.display = this.checked ? 'block' : 'none';
+});
+
+function renderBBSRatingRows() {
+  const container = $('bbsRatingRows');
+  container.innerHTML = '';
+  bbsSwpSteps.forEach((step, idx) => {
+    const hazards = JSON.parse(step.hazards || '[]');
+    const ppe     = JSON.parse(step.ppe_required || '[]');
+    const tags    = [...hazards, ...ppe];
+    const tagsHtml = tags.length
+      ? `<div class="bbs-step-tags" style="margin-top:4px;">${tags.map(t => `<span class="bbs-step-tag">${escHtml(t)}</span>`).join('')}</div>`
+      : '';
+
+    const row = document.createElement('div');
+    row.className = 'bbs-rating-row';
+    row.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:8px;">
+        <span class="bbs-step-num" style="padding-top:3px;">Step ${idx + 1}</span>
+        <div>
+          <div class="bbs-rating-step-label">${escHtml(step.description)}</div>
+          ${tagsHtml}
+        </div>
+      </div>
+      <div class="bbs-rating-controls">
+        <button class="bbs-rating-btn" data-step="${step.id}" data-val="safe">Safe</button>
+        <button class="bbs-rating-btn" data-step="${step.id}" data-val="at_risk">At Risk</button>
+        <button class="bbs-rating-btn" data-step="${step.id}" data-val="not_applicable">N/A</button>
+      </div>
+      <textarea class="bbs-comment-input" id="bbsComment_${step.id}" rows="2"
+                placeholder="Comment (required for at-risk ratings)…"></textarea>`;
+
+    row.querySelectorAll('.bbs-rating-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const stepId = Number(btn.dataset.step);
+        const val    = btn.dataset.val;
+        bbsRatings[stepId] = { rating: val, comment: '' };
+
+        // Update button styles
+        row.querySelectorAll('.bbs-rating-btn').forEach(b => b.className = 'bbs-rating-btn');
+        btn.classList.add(`selected-${val}`);
+
+        // Show/hide comment field
+        const commentEl = $(`bbsComment_${stepId}`);
+        if (val === 'at_risk') {
+          commentEl.classList.add('visible');
+        } else {
+          commentEl.classList.remove('visible');
+          commentEl.value = '';
+        }
+      });
+    });
+
+    row.querySelector('.bbs-comment-input').addEventListener('input', function () {
+      const stepId = Number(this.id.replace('bbsComment_', ''));
+      if (bbsRatings[stepId]) bbsRatings[stepId].comment = this.value;
+    });
+
+    container.appendChild(row);
+  });
+}
+
+async function submitBBSObservation() {
+  const assetId     = $('bbsAssetId').value;
+  const swpId       = $('bbsSwpSelect').value;
+  const observedAt  = $('bbsObservedAt').value;
+
+  if (!assetId)    return showToast('Select an asset', 'error');
+  if (!swpId)      return showToast('Select a SWP', 'error');
+  if (!observedAt) return showToast('Date and time is required', 'error');
+
+  // Validate all steps rated
+  const unrated = bbsSwpSteps.filter(s => !bbsRatings[s.id]);
+  if (unrated.length) return showToast(`Rate all ${bbsSwpSteps.length} steps before submitting`, 'error');
+
+  // Validate at-risk steps have comments
+  const missingComment = bbsSwpSteps.filter(s => bbsRatings[s.id]?.rating === 'at_risk' && !bbsRatings[s.id]?.comment?.trim());
+  if (missingComment.length) return showToast('Add a comment for each at-risk step', 'error');
+
+  const ratings = bbsSwpSteps.map(s => ({
+    swp_step_id: s.id,
+    rating:      bbsRatings[s.id].rating,
+    comment:     bbsRatings[s.id].comment?.trim() || null,
+  }));
+
+  const body = {
+    asset_id:          assetId,
+    swp_id:            swpId,
+    observed_at:       new Date(observedAt).toISOString(),
+    shift:             $('bbsShift').value     || null,
+    observed_person:   $('bbsObservedPerson').value.trim() || null,
+    area:              $('bbsArea').value.trim()           || null,
+    conversation_held: $('bbsConvHeld').checked,
+    followup_required: $('bbsFollowup').checked,
+    followup_notes:    $('bbsFollowupNotes').value.trim()  || null,
+    ratings,
+  };
+
+  try {
+    await apiFetch('/bbs', { method: 'POST', body: JSON.stringify(body) });
+    showToast('Observation submitted');
+    closeNewBBSSheet();
+    loadBBSList();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
 }
 
 // ─── Talks list ───────────────────────────────────────────────────────────────
