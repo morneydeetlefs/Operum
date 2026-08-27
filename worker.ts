@@ -539,7 +539,26 @@ export default {
     // ══════════════════════════════════════════════════════════════════════════
 
     // ── GET /api/assets ───────────────────────────────────────────────────────
+    // Supports two modes:
+    //   ?q=<text>        full-text search across id and label (BBS asset picker)
+    //   ?parent_id=<id>  children of a node (tree navigation); omit for root nodes
     if (method === 'GET' && path === '/api/assets') {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+
+      const q = url.searchParams.get('q')?.trim() || null;
+      if (q) {
+        const pattern = `%${q}%`;
+        const rows = await db.prepare(
+          `SELECT a.*,
+            (SELECT COUNT(*) FROM assets c WHERE c.parent_id = a.id) AS child_count
+           FROM assets a
+           WHERE a.id LIKE ? OR a.label LIKE ?
+           ORDER BY a.id
+           LIMIT 20`
+        ).bind(pattern, pattern).all<AssetRow>();
+        return json({ assets: rows.results }, 200, origin);
+      }
+
       const parentId = url.searchParams.get('parent_id') || null;
       const rows = await db.prepare(
         `SELECT a.*,
