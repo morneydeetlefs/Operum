@@ -1097,7 +1097,7 @@ export default {
     // List all SWPs on one asset. Returns draft + approved by default.
     // ?status=approved returns only approved SWPs (used by BBS observation picker).
     const assetSwpsMatch = path.match(/^\/api\/assets\/([^/]+)\/swps$/);
-    if (assetSwpsMatch) {
+    if (assetSwpsMatch && method === 'GET') {
       if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
       const assetId     = decodeURIComponent(assetSwpsMatch[1]);
       const statusFilter = url.searchParams.get('status') || null;
@@ -1124,10 +1124,6 @@ export default {
 
       const { results } = await db.prepare(sql).bind(...bindings).all();
       return json({ swps: results }, 200, origin);
-    }
-
-    if (assetSwpsMatch && method === 'POST') {
-      // handled below in the POST block — regex match above covers both GET and POST
     }
 
     // ── POST /api/assets/:id/swps ─────────────────────────────────────────────
