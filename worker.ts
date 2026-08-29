@@ -1577,6 +1577,8 @@ export default {
 
     // ── END BBS OBSERVATIONS ──────────────────────────────────────────────────
 
+
+
     // ══════════════════════════════════════════════════════════════════════════
     // CONDITION MONITORING (DiagnosticWand — add-on module)
     // ══════════════════════════════════════════════════════════════════════════
@@ -1848,7 +1850,507 @@ export default {
     }
 
     // ── END CONDITION MONITORING ──────────────────────────────────────────────
+	// ══════════════════════════════════════════════════════════════════════════
+    // INCIDENT INVESTIGATION
+    // OHSA Act 85 of 1993 + General Administrative Regulations
+    // ══════════════════════════════════════════════════════════════════════════
 
+    // Role constants local to this section:
+    //   Raise incident:          any authenticated user (READ_ROLES covers all)
+    //   Assign / update / close: admin, safety_manager, supervisor
+    //   Read:                    MANAGE_ROLES
+
+    // ── POST /api/incidents ───────────────────────────────────────────────────
+    // Raise a new incident. System sets reported_at and formal_report_due_at.
+    // Body: {
+    //   id, incident_at, description, classification,
+    //   affected_person_name, affected_person_type,
+    //   location_asset_id?, location_freetext?,
+    //   affected_person_id?, body_part?, injury_effect?, machinery_involved?
+    // }
+    if (method === 'POST' && path === '/api/incidents') {
+      if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        id?: string;
+        incident_at?: string;
+        description?: string;
+        classification?: string;
+        affected_person_name?: string;
+        affected_person_type?: string;
+        location_asset_id?: string;
+        location_freetext?: string;
+        affected_person_id?: string;
+        body_part?: string;
+        injury_effect?: string;
+        machinery_involved?: string;
+      };
+
+      if (!b.id?.trim())                    return err('id is required', 400, origin);
+      if (!b.incident_at || isNaN(Date.parse(b.incident_at))) return err('incident_at must be a valid ISO date', 400, origin);
+      if (!b.description?.trim())           return err('description is required', 400, origin);
+      if (!b.affected_person_name?.trim())  return err('affected_person_name is required', 400, origin);
+
+      const validClassifications = ['section_24_serious','section_24_other','medical_treatment','near_miss'];
+      if (!b.classification || !validClassifications.includes(b.classification))
+        return err('classification must be one of: ' + validClassifications.join(', '), 400, origin);
+
+      const validPersonTypes = ['employee','contractor'];
+      if (!b.affected_person_type || !validPersonTypes.includes(b.affected_person_type))
+        return err('affected_person_type must be employee or contractor', 400, origin);
+
+      const validInjuryEffects = ['death','unconscious','limb_loss','incapacity_14d','dangerous_substance','pressure_release','machinery_failure','machinery_runaway','other'];
+      if (b.injury_effect && !validInjuryEffects.includes(b.injury_effect))
+        return err('Invalid injury_effect value', 400, origin);
+
+      // Duplicate check
+      const existing = await db.prepare('SELECT id FROM incidents WHERE id = ?').bind(b.id.trim()).first();
+      if (existing) return err(`Incident "${b.id}" already exists`, 409, origin);
+
+      const now = new Date().toISOString();
+
+      // formal_report_due_at is set for Section 24 incidents only — 7 days from reported_at
+      const isSection24 = b.classification === 'section_24_serious' || b.classification === 'section_24_other';
+      const formalReportDueAt = isSection24
+        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        : null;
+
+      await db.prepare(`
+        INSERT INTO incidents (
+          id, reported_by, reported_at, incident_at,
+          location_asset_id, location_freetext,
+          description, classification,
+          affected_person_name, affected_person_id, affected_person_type,
+          body_part, injury_effect, machinery_involved,
+          formal_report_due_at, status, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+      `).bind(
+        b.id.trim(),
+        actor.sub,
+        now,
+        b.incident_at,
+        b.location_asset_id?.trim() ?? null,
+        b.location_freetext?.trim() ?? null,
+        b.description.trim(),
+        b.classification,
+        b.affected_person_name.trim(),
+        b.affected_person_id?.trim() ?? null,
+        b.affected_person_type,
+        b.body_part?.trim() ?? null,
+        b.injury_effect ?? null,
+        b.machinery_involved?.trim() ?? null,
+        formalReportDueAt,
+        now,
+      ).run();
+
+      await log(db, actor.sub, 'create', `incident:${b.id}`, { classification: b.classification }, ip);
+      const incident = await db.prepare('SELECT * FROM incidents WHERE id = ?').bind(b.id.trim()).first();
+      return json({ incident }, 201, origin);
+    }
+
+    // ── GET /api/incidents ────────────────────────────────────────────────────
+    // List incidents. Filters: ?status= &classification= &overdue=1
+    if (method === 'GET' && path === '/api/incidents') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+
+      const statusF         = url.searchParams.get('status')         || null;
+      const classificationF = url.searchParams.get('classification') || null;
+      const overdueF        = url.searchParams.get('overdue')        === '1';
+      const limit           = Math.min(Number(url.searchParams.get('limit')  ?? '50'), 200);
+      const offset          = Math.max(Number(url.searchParams.get('offset') ?? '0'),  0);
+
+      let sql = `
+        SELECT
+          i.*,
+          e.name AS reported_by_name,
+          inv.investigator_id,
+          inv.investigation_due_at,
+          inv.completed_at AS investigation_completed_at,
+          emp_inv.name AS investigator_name
+        FROM incidents i
+        LEFT JOIN employees e       ON e.id = i.reported_by
+        LEFT JOIN incident_investigations inv ON inv.incident_id = i.id
+        LEFT JOIN employees emp_inv ON emp_inv.id = inv.investigator_id
+        WHERE 1=1
+      `;
+      const bindings: unknown[] = [];
+
+      if (statusF)         { sql += ` AND i.status = ?`;         bindings.push(statusF); }
+      if (classificationF) { sql += ` AND i.classification = ?`; bindings.push(classificationF); }
+
+      // overdue = investigation past due OR formal report past due
+      if (overdueF) {
+        sql += ` AND (
+          (inv.investigation_due_at IS NOT NULL AND inv.completed_at IS NULL AND inv.investigation_due_at < datetime('now'))
+          OR
+          (i.formal_report_due_at IS NOT NULL AND i.formal_report_sent = 0 AND i.formal_report_due_at < datetime('now'))
+        )`;
+      }
+
+      sql += ` ORDER BY i.reported_at DESC LIMIT ? OFFSET ?`;
+      bindings.push(limit, offset);
+
+      const { results } = await db.prepare(sql).bind(...bindings).all();
+      return json({ incidents: results, count: results.length, limit, offset }, 200, origin);
+    }
+
+    // ── Incident detail + sub-routes ──────────────────────────────────────────
+    const incidentDetailMatch = path.match(/^\/api\/incidents\/([^/]+)$/);
+    const incidentSubMatch    = path.match(/^\/api\/incidents\/([^/]+)\/(.+)$/);
+
+    // ── GET /api/incidents/:id ────────────────────────────────────────────────
+    if (incidentDetailMatch && method === 'GET') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentDetailMatch[1]);
+
+      const incident = await db.prepare('SELECT * FROM incidents WHERE id = ?').bind(incidentId).first();
+      if (!incident) return err('Incident not found', 404, origin);
+
+      const { results: investigations } = await db.prepare(`
+        SELECT inv.*, e.name AS investigator_name
+        FROM incident_investigations inv
+        LEFT JOIN employees e ON e.id = inv.investigator_id
+        WHERE inv.incident_id = ?
+        ORDER BY inv.assigned_at ASC
+      `).bind(incidentId).all();
+
+      const { results: reviews } = await db.prepare(`
+        SELECT r.*, ec.name AS chairperson_name, ee.name AS employer_name
+        FROM incident_committee_reviews r
+        LEFT JOIN employees ec ON ec.id = r.chairperson_id
+        LEFT JOIN employees ee ON ee.id = r.employer_id
+        WHERE r.incident_id = ?
+        ORDER BY r.meeting_date ASC
+      `).bind(incidentId).all();
+
+      const { results: witnesses } = await db.prepare(`
+        SELECT w.*, e.name AS employee_name
+        FROM incident_witnesses w
+        LEFT JOIN employees e ON e.id = w.witness_employee_id
+        WHERE w.incident_id = ?
+        ORDER BY w.id ASC
+      `).bind(incidentId).all();
+
+      await log(db, actor.sub, 'view', `incident:${incidentId}`, null, ip);
+      return json({ incident, investigations, reviews, witnesses }, 200, origin);
+    }
+
+    // ── PATCH /api/incidents/:id ──────────────────────────────────────────────
+    // Update mutable fields only. status and reported_at are not patchable here.
+    if (incidentDetailMatch && method === 'PATCH') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentDetailMatch[1]);
+
+      const incident = await db.prepare('SELECT id FROM incidents WHERE id = ?').bind(incidentId).first();
+      if (!incident) return err('Incident not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        description?: string;
+        location_freetext?: string;
+        location_asset_id?: string;
+        body_part?: string;
+        injury_effect?: string;
+        machinery_involved?: string;
+      };
+
+      const fields: string[] = [];
+      const vals: unknown[]  = [];
+
+      if (b.description       !== undefined) { fields.push('description = ?');       vals.push(b.description.trim()); }
+      if (b.location_freetext !== undefined) { fields.push('location_freetext = ?'); vals.push(b.location_freetext?.trim() ?? null); }
+      if (b.location_asset_id !== undefined) { fields.push('location_asset_id = ?'); vals.push(b.location_asset_id?.trim() ?? null); }
+      if (b.body_part         !== undefined) { fields.push('body_part = ?');         vals.push(b.body_part?.trim() ?? null); }
+      if (b.injury_effect     !== undefined) { fields.push('injury_effect = ?');     vals.push(b.injury_effect ?? null); }
+      if (b.machinery_involved !== undefined) { fields.push('machinery_involved = ?'); vals.push(b.machinery_involved?.trim() ?? null); }
+
+      if (!fields.length) return err('No patchable fields provided', 400, origin);
+      vals.push(incidentId);
+
+      await db.prepare(`UPDATE incidents SET ${fields.join(', ')} WHERE id = ?`).bind(...vals).run();
+      await log(db, actor.sub, 'update', `incident:${incidentId}`, b, ip);
+      const updated = await db.prepare('SELECT * FROM incidents WHERE id = ?').bind(incidentId).first();
+      return json({ incident: updated }, 200, origin);
+    }
+
+    // ── POST /api/incidents/:id/notify ────────────────────────────────────────
+    // Record that the immediate telephone/fax notification was made to the
+    // Provincial Director. Section 24 serious incidents only.
+    if (incidentSubMatch && incidentSubMatch[2] === 'notify' && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentSubMatch[1]);
+
+      const incident = await db.prepare(
+        'SELECT id, classification, immediate_notification_sent FROM incidents WHERE id = ?'
+      ).bind(incidentId).first<{ id: string; classification: string; immediate_notification_sent: number }>();
+      if (!incident) return err('Incident not found', 404, origin);
+      if (incident.classification !== 'section_24_serious')
+        return err('Immediate notification only applies to section_24_serious incidents', 409, origin);
+      if (incident.immediate_notification_sent)
+        return err('Immediate notification already recorded', 409, origin);
+
+      const now = new Date().toISOString();
+      await db.prepare(`
+        UPDATE incidents SET
+          immediate_notification_sent = 1,
+          immediate_notification_at   = ?,
+          immediate_notification_by   = ?
+        WHERE id = ?
+      `).bind(now, actor.sub, incidentId).run();
+
+      await log(db, actor.sub, 'update', `incident:${incidentId}/notify`, null, ip);
+      return json({ ok: true, immediate_notification_at: now }, 200, origin);
+    }
+
+    // ── POST /api/incidents/:id/formal-report ─────────────────────────────────
+    // Record that the formal written report was submitted to the Provincial
+    // Director within 7 days. Section 24 incidents only.
+    if (incidentSubMatch && incidentSubMatch[2] === 'formal-report' && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentSubMatch[1]);
+
+      const incident = await db.prepare(
+        'SELECT id, classification, formal_report_sent FROM incidents WHERE id = ?'
+      ).bind(incidentId).first<{ id: string; classification: string; formal_report_sent: number }>();
+      if (!incident) return err('Incident not found', 404, origin);
+      if (!['section_24_serious','section_24_other'].includes(incident.classification))
+        return err('Formal report only applies to Section 24 incidents', 409, origin);
+      if (incident.formal_report_sent)
+        return err('Formal report already recorded', 409, origin);
+
+      const now = new Date().toISOString();
+      await db.prepare(`
+        UPDATE incidents SET formal_report_sent = 1, formal_report_sent_at = ? WHERE id = ?
+      `).bind(now, incidentId).run();
+
+      await log(db, actor.sub, 'update', `incident:${incidentId}/formal-report`, null, ip);
+      return json({ ok: true, formal_report_sent_at: now }, 200, origin);
+    }
+
+    // ── POST /api/incidents/:id/investigate ───────────────────────────────────
+    // Assign an investigator. Sets investigation_due_at = incident_at + 3 days.
+    // Status → under_investigation.
+    // Body: { investigator_id }
+    if (incidentSubMatch && incidentSubMatch[2] === 'investigate' && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentSubMatch[1]);
+
+      const b = await req.json().catch(() => ({})) as { investigator_id?: string };
+      if (!b.investigator_id?.trim()) return err('investigator_id is required', 400, origin);
+
+      const incident = await db.prepare(
+        'SELECT id, incident_at, status FROM incidents WHERE id = ?'
+      ).bind(incidentId).first<{ id: string; incident_at: string; status: string }>();
+      if (!incident) return err('Incident not found', 404, origin);
+      if (incident.status === 'closed') return err('Cannot assign investigator to a closed incident', 409, origin);
+
+      const investigator = await db.prepare('SELECT id FROM employees WHERE id = ? AND active = 1')
+        .bind(b.investigator_id.trim()).first();
+      if (!investigator) return err('Investigator not found or inactive', 404, origin);
+
+      // investigation_due_at = incident_at + 3 calendar days
+      const dueDt = new Date(incident.incident_at);
+      dueDt.setDate(dueDt.getDate() + 3);
+      const investigationDueAt = dueDt.toISOString();
+      const now = new Date().toISOString();
+
+      const result = await db.prepare(`
+        INSERT INTO incident_investigations
+          (incident_id, investigator_id, assigned_at, assigned_by, investigation_due_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(incidentId, b.investigator_id.trim(), now, actor.sub, investigationDueAt).run();
+
+      await db.prepare(`UPDATE incidents SET status = 'under_investigation' WHERE id = ?`)
+        .bind(incidentId).run();
+
+      await log(db, actor.sub, 'create', `incident:${incidentId}/investigation`, { investigator_id: b.investigator_id }, ip);
+      return json({ id: result.meta.last_row_id, investigation_due_at: investigationDueAt }, 201, origin);
+    }
+
+    // ── PATCH /api/incidents/:id/investigate ──────────────────────────────────
+    // Submit investigation findings. Once completed_at is set, status →
+    // pending_committee. All finding fields are optional on each PATCH to allow
+    // progressive saving — completed_at must be explicitly supplied to finalise.
+    // Body: { findings?, root_cause?, corrective_actions?, completed_at? }
+    if (incidentSubMatch && incidentSubMatch[2] === 'investigate' && method === 'PATCH') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentSubMatch[1]);
+
+      const b = await req.json().catch(() => ({})) as {
+        findings?: string;
+        root_cause?: string;
+        corrective_actions?: string;
+        completed_at?: string;
+      };
+
+      // Find the latest investigation record for this incident
+      const inv = await db.prepare(`
+        SELECT id, completed_at FROM incident_investigations
+        WHERE incident_id = ? ORDER BY assigned_at DESC LIMIT 1
+      `).bind(incidentId).first<{ id: number; completed_at: string | null }>();
+      if (!inv) return err('No investigation assigned to this incident', 404, origin);
+      if (inv.completed_at) return err('Investigation is already finalised', 409, origin);
+
+      const fields: string[] = [];
+      const vals: unknown[]  = [];
+
+      if (b.findings          !== undefined) { fields.push('findings = ?');           vals.push(b.findings?.trim() ?? null); }
+      if (b.root_cause        !== undefined) { fields.push('root_cause = ?');         vals.push(b.root_cause?.trim() ?? null); }
+      if (b.corrective_actions !== undefined) { fields.push('corrective_actions = ?'); vals.push(b.corrective_actions?.trim() ?? null); }
+      if (b.completed_at      !== undefined) { fields.push('completed_at = ?');       vals.push(new Date().toISOString()); }
+
+      if (!fields.length) return err('No fields to update', 400, origin);
+      vals.push(inv.id);
+
+      await db.prepare(`UPDATE incident_investigations SET ${fields.join(', ')} WHERE id = ?`).bind(...vals).run();
+
+      // If investigation is being finalised, advance incident status
+      if (b.completed_at !== undefined) {
+        await db.prepare(`UPDATE incidents SET status = 'pending_committee' WHERE id = ?`)
+          .bind(incidentId).run();
+      }
+
+      await log(db, actor.sub, 'update', `incident:${incidentId}/investigation`, { completed: b.completed_at !== undefined }, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── POST /api/incidents/:id/committee-review ──────────────────────────────
+    // Create a committee review record. One per meeting — a second meeting
+    // creates a second record, preserving full audit trail.
+    // Body: { meeting_date, chairperson_id, employer_id, committee_remarks? }
+    if (incidentSubMatch && incidentSubMatch[2] === 'committee-review' && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentSubMatch[1]);
+
+      const b = await req.json().catch(() => ({})) as {
+        meeting_date?: string;
+        chairperson_id?: string;
+        employer_id?: string;
+        committee_remarks?: string;
+      };
+
+      if (!b.meeting_date?.trim())    return err('meeting_date is required', 400, origin);
+      if (!b.chairperson_id?.trim())  return err('chairperson_id is required', 400, origin);
+      if (!b.employer_id?.trim())     return err('employer_id is required', 400, origin);
+
+      const incident = await db.prepare('SELECT id FROM incidents WHERE id = ?').bind(incidentId).first();
+      if (!incident) return err('Incident not found', 404, origin);
+
+      const chairperson = await db.prepare('SELECT id FROM employees WHERE id = ? AND active = 1')
+        .bind(b.chairperson_id.trim()).first();
+      if (!chairperson) return err('Chairperson not found or inactive', 404, origin);
+
+      const employer = await db.prepare('SELECT id FROM employees WHERE id = ? AND active = 1')
+        .bind(b.employer_id.trim()).first();
+      if (!employer) return err('Employer representative not found or inactive', 404, origin);
+
+      const result = await db.prepare(`
+        INSERT INTO incident_committee_reviews
+          (incident_id, meeting_date, chairperson_id, employer_id, committee_remarks)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        incidentId,
+        b.meeting_date.trim(),
+        b.chairperson_id.trim(),
+        b.employer_id.trim(),
+        b.committee_remarks?.trim() ?? null,
+      ).run();
+
+      await log(db, actor.sub, 'create', `incident:${incidentId}/committee-review`, { meeting_date: b.meeting_date }, ip);
+      return json({ id: result.meta.last_row_id }, 201, origin);
+    }
+
+    // ── POST /api/incidents/:id/endorse/chairperson ───────────────────────────
+    // Chairperson endorses the most recent committee review.
+    // Immutable — 409 if already endorsed.
+    const endorseMatch = path.match(/^\/api\/incidents\/([^/]+)\/endorse\/(chairperson|employer)$/);
+    if (endorseMatch && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId  = decodeURIComponent(endorseMatch[1]);
+      const endorseRole = endorseMatch[2] as 'chairperson' | 'employer';
+
+      const incident = await db.prepare('SELECT id, status FROM incidents WHERE id = ?')
+        .bind(incidentId).first<{ id: string; status: string }>();
+      if (!incident) return err('Incident not found', 404, origin);
+      if (incident.status === 'closed') return err('Incident is already closed', 409, origin);
+
+      // Find the latest review for this incident
+      const review = await db.prepare(`
+        SELECT id, chairperson_endorsed_at, employer_endorsed_at
+        FROM incident_committee_reviews
+        WHERE incident_id = ?
+        ORDER BY id DESC LIMIT 1
+      `).bind(incidentId).first<{
+        id: number;
+        chairperson_endorsed_at: string | null;
+        employer_endorsed_at: string | null;
+      }>();
+      if (!review) return err('No committee review exists for this incident', 404, origin);
+
+      const column = endorseRole === 'chairperson'
+        ? 'chairperson_endorsed_at'
+        : 'employer_endorsed_at';
+
+      // Immutability guard
+      if (review[column] !== null)
+        return err(`${endorseRole} endorsement already recorded — create a new committee review to supersede`, 409, origin);
+
+      const now = new Date().toISOString();
+      await db.prepare(`UPDATE incident_committee_reviews SET ${column} = ? WHERE id = ?`)
+        .bind(now, review.id).run();
+
+      // Check whether both endorsements are now set — auto-close if so
+      const updated = await db.prepare(`
+        SELECT chairperson_endorsed_at, employer_endorsed_at
+        FROM incident_committee_reviews WHERE id = ?
+      `).bind(review.id).first<{ chairperson_endorsed_at: string | null; employer_endorsed_at: string | null }>();
+
+      let closed = false;
+      if (updated?.chairperson_endorsed_at && updated?.employer_endorsed_at) {
+        await db.prepare(`UPDATE incidents SET status = 'closed' WHERE id = ?`).bind(incidentId).run();
+        closed = true;
+      }
+
+      await log(db, actor.sub, 'update', `incident:${incidentId}/endorse/${endorseRole}`, { closed }, ip);
+      return json({ ok: true, endorsed_at: now, incident_closed: closed }, 200, origin);
+    }
+
+    // ── POST /api/incidents/:id/witnesses ─────────────────────────────────────
+    // Add a witness record to an incident.
+    // Body: { witness_name, contact_details, witness_employee_id?, statement? }
+    if (incidentSubMatch && incidentSubMatch[2] === 'witnesses' && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager','supervisor'] as Role[])) return err('Forbidden', 403, origin);
+      const incidentId = decodeURIComponent(incidentSubMatch[1]);
+
+      const b = await req.json().catch(() => ({})) as {
+        witness_name?: string;
+        contact_details?: string;
+        witness_employee_id?: string;
+        statement?: string;
+      };
+
+      if (!b.witness_name?.trim())    return err('witness_name is required', 400, origin);
+      if (!b.contact_details?.trim()) return err('contact_details is required', 400, origin);
+
+      const incident = await db.prepare('SELECT id FROM incidents WHERE id = ?').bind(incidentId).first();
+      if (!incident) return err('Incident not found', 404, origin);
+
+      const result = await db.prepare(`
+        INSERT INTO incident_witnesses
+          (incident_id, witness_name, witness_employee_id, contact_details, statement)
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        incidentId,
+        b.witness_name.trim(),
+        b.witness_employee_id?.trim() ?? null,
+        b.contact_details.trim(),
+        b.statement?.trim() ?? null,
+      ).run();
+
+      await log(db, actor.sub, 'create', `incident:${incidentId}/witness`, { witness_name: b.witness_name }, ip);
+      return json({ id: result.meta.last_row_id }, 201, origin);
+    }
+
+    // ── END INCIDENT INVESTIGATION ────────────────────────────────────────────
     return err('Not found', 404, origin);
   },
 };
