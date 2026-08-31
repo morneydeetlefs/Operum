@@ -831,6 +831,88 @@ body::before {
 .bbs-status-dot { width: 7px; height: 7px; border-radius: 50%; }
 .bbs-status-dot.open   { background: var(--md-gold); }
 .bbs-status-dot.closed { background: var(--md-muted); }
+
+/* ── Incident Investigation ─────────────────────────────────────────────────── */
+.inc-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px; flex-shrink: 0;
+  border-bottom: 1px solid var(--md-border);
+}
+.inc-toolbar-filters {
+  display: flex; gap: 6px; flex: 1;
+  overflow-x: auto; scrollbar-width: none;
+}
+.inc-toolbar-filters::-webkit-scrollbar { display: none; }
+
+.inc-list { padding: 8px 0; }
+.inc-row {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 12px 16px; cursor: pointer;
+  border-bottom: 1px solid var(--md-border);
+  transition: background .15s; -webkit-tap-highlight-color: transparent;
+}
+.inc-row:hover { background: var(--md-surface); }
+.inc-row:last-child { border-bottom: none; }
+
+.inc-row-icon {
+  flex-shrink: 0; width: 40px; height: 40px;
+  border-radius: var(--md-radius);
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem;
+}
+.inc-row-icon.section-24-serious { border-color: var(--md-danger);  background: rgba(201,76,76,.08); }
+.inc-row-icon.section-24-other   { border-color: var(--md-warning); background: rgba(212,132,42,.08); }
+.inc-row-icon.medical-treatment  { border-color: var(--md-info);    background: rgba(76,143,201,.08); }
+.inc-row-icon.near-miss          { border-color: var(--md-gold-dk); background: rgba(201,148,60,.06); }
+
+.inc-row-body { flex: 1; min-width: 0; }
+.inc-row-title {
+  font-size: .88rem; color: var(--md-cream);
+  margin-bottom: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.inc-row-meta {
+  font-family: var(--font-mono); font-size: .62rem;
+  letter-spacing: .06em; color: var(--md-muted);
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.inc-row-right {
+  flex-shrink: 0; text-align: right;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+}
+
+.inc-class-pill {
+  font-family: var(--font-mono); font-size: .58rem; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 20px;
+}
+.inc-class-pill.section_24_serious { background: rgba(201,76,76,.15);  color: var(--md-danger); }
+.inc-class-pill.section_24_other   { background: rgba(212,132,42,.15); color: var(--md-warning); }
+.inc-class-pill.medical_treatment  { background: rgba(76,143,201,.12); color: var(--md-info); }
+.inc-class-pill.near_miss          { background: rgba(201,148,60,.10); color: var(--md-gold); }
+
+.inc-status-pill {
+  font-family: var(--font-mono); font-size: .55rem; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 6px; border-radius: 20px;
+}
+.inc-status-pill.open                { background: rgba(201,148,60,.12); color: var(--md-gold); }
+.inc-status-pill.under_investigation { background: rgba(76,143,201,.12); color: var(--md-info); }
+.inc-status-pill.pending_committee   { background: rgba(212,132,42,.12); color: var(--md-warning); }
+.inc-status-pill.closed              { background: rgba(76,175,122,.08); color: var(--md-success); }
+
+.inc-overdue-flag {
+  font-family: var(--font-mono); font-size: .55rem;
+  color: var(--md-danger); letter-spacing: .04em;
+  display: flex; align-items: center; gap: 3px;
+}
+
+/* Raise incident bottom sheet */
+.inc-form { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px; }
+.inc-section-label {
+  font-family: var(--font-mono); font-size: .6rem;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--md-gold-dk); margin-bottom: 2px; margin-top: 6px;
+}
 .bbs-detail-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 18px 20px 14px; border-bottom: 1px solid var(--md-border); flex-shrink: 0;
@@ -1074,7 +1156,7 @@ body::before {
       <div class="safety-subnav">
         <button class="safety-subnav-btn active" onclick="openSafetyView('svTalks')">Toolbox Talks</button>
         <button class="safety-subnav-btn" onclick="openSafetyView('svBBS')">BBS</button>
-        <button class="safety-subnav-btn" onclick="openSafetyView('svIncidents')" style="opacity:.45;pointer-events:none;">Incidents</button>
+        <button class="safety-subnav-btn" onclick="openSafetyView('svIncidents')">Incidents</button>
         <button class="safety-subnav-btn" onclick="openSafetyView('svRisk')" style="opacity:.45;pointer-events:none;">Risk</button>
         <button class="safety-subnav-btn" onclick="openSafetyView('svPTW')" style="opacity:.45;pointer-events:none;">PTW</button>
       </div>
@@ -1116,12 +1198,135 @@ body::before {
           <div class="loader"><div class="spin"></div> Loading…</div>
         </div>
       </div><!-- /svBBS -->
+      <!-- ── Incident Investigation sub-view ── -->
       <div class="safety-subview" id="svIncidents">
-        <div class="stub-view"><div class="stub-icon">🚨</div>
-          <div class="stub-title">Incidents & Near-Misses</div>
-          <div class="stub-desc">Incident reporting — Phase 2.</div>
-          <div class="stub-tag">Coming soon</div></div>
-      </div>
+
+        <!-- Toolbar: filters + raise button -->
+        <div class="inc-toolbar">
+          <div class="inc-toolbar-filters" id="incFilters">
+            <button class="filter-chip active" data-status="" onclick="filterIncidents(this)">All</button>
+            <button class="filter-chip" data-status="open"                onclick="filterIncidents(this)">Open</button>
+            <button class="filter-chip" data-status="under_investigation" onclick="filterIncidents(this)">Investigating</button>
+            <button class="filter-chip" data-status="pending_committee"   onclick="filterIncidents(this)">Committee</button>
+            <button class="filter-chip" data-status="closed"              onclick="filterIncidents(this)">Closed</button>
+          </div>
+          <button class="btn btn-gold" style="font-size:.75rem;padding:6px 12px;flex-shrink:0;"
+                  onclick="openRaiseIncidentSheet()">+ Raise</button>
+        </div>
+
+        <!-- Incident list -->
+        <div class="inc-list" id="incidentsList">
+          <div class="loader"><div class="spin"></div> Loading…</div>
+        </div>
+
+      </div><!-- /svIncidents -->
+
+      <!-- ── Raise Incident bottom sheet ── -->
+      <div class="modal-backdrop" id="raiseIncidentModal"
+           onclick="if(event.target===this)closeRaiseIncidentSheet()">
+        <div class="modal-sheet" style="max-height:92vh;">
+
+          <div class="modal-title">Raise Incident / Near-Miss</div>
+
+          <div class="inc-form">
+
+            <!-- Incident ID -->
+            <div class="form-field">
+              <label class="form-label">Incident ID <span class="form-required">*</span></label>
+              <input class="form-input" id="incId" type="text"
+                     placeholder="e.g. INC-2026-002" autocomplete="off"/>
+              <div class="form-hint" id="incIdHint"></div>
+            </div>
+
+            <!-- Classification -->
+            <div class="form-field">
+              <label class="form-label">Classification <span class="form-required">*</span></label>
+              <select class="form-select" id="incClassification" onchange="onIncClassChange()">
+                <option value="">— select —</option>
+                <option value="near_miss">Near-miss</option>
+                <option value="medical_treatment">Medical treatment required</option>
+                <option value="section_24_other">Section 24 — other reportable</option>
+                <option value="section_24_serious">Section 24 — serious (immediate notification)</option>
+              </select>
+              <div class="form-hint" id="incClassHint" style="color:var(--md-warning);"></div>
+            </div>
+
+            <!-- When it happened -->
+            <div class="form-field">
+              <label class="form-label">Date &amp; time of incident <span class="form-required">*</span></label>
+              <input class="form-input" id="incIncidentAt" type="datetime-local"/>
+            </div>
+
+            <!-- Description -->
+            <div class="form-field">
+              <label class="form-label">What happened <span class="form-required">*</span></label>
+              <textarea class="form-input" id="incDescription" rows="3"
+                        placeholder="Describe the incident — what occurred, how, and where"
+                        style="resize:none;"></textarea>
+            </div>
+
+            <!-- Location -->
+            <div class="inc-section-label">Location</div>
+            <div class="form-field">
+              <label class="form-label">Area / location description</label>
+              <input class="form-input" id="incLocationFreetext" type="text"
+                     placeholder="e.g. Pump Bay A, Conveyor Level 3"/>
+            </div>
+
+            <!-- Affected person -->
+            <div class="inc-section-label">Affected Person</div>
+            <div class="form-row">
+              <div class="form-field">
+                <label class="form-label">Name <span class="form-required">*</span></label>
+                <input class="form-input" id="incPersonName" type="text"
+                       placeholder="Full name"/>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Type <span class="form-required">*</span></label>
+                <select class="form-select" id="incPersonType">
+                  <option value="employee">Employee</option>
+                  <option value="contractor">Contractor</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Optional: injury detail -->
+            <div class="form-field">
+              <label class="form-label">Body part affected <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <input class="form-input" id="incBodyPart" type="text"
+                     placeholder="e.g. right hand, lower back"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Effect on person <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <select class="form-select" id="incInjuryEffect">
+                <option value="">— none / not applicable —</option>
+                <option value="death">Death</option>
+                <option value="unconscious">Unconsciousness</option>
+                <option value="limb_loss">Loss of limb or part of limb</option>
+                <option value="incapacity_14d">Incapacity ≥ 14 days</option>
+                <option value="dangerous_substance">Dangerous substance exposure</option>
+                <option value="pressure_release">Uncontrolled pressure release</option>
+                <option value="machinery_failure">Machinery failure / uncontrolled objects</option>
+                <option value="machinery_runaway">Machinery running out of control</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Machine / process involved <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <input class="form-input" id="incMachinery" type="text"
+                     placeholder="e.g. Feed Pump 7, Conveyor CV-180"/>
+            </div>
+
+          </div><!-- /inc-form -->
+
+          <div class="form-actions">
+            <button class="btn btn-outline" onclick="closeRaiseIncidentSheet()">Cancel</button>
+            <button class="btn btn-gold" id="incSaveBtn" onclick="saveIncident()">Raise Incident</button>
+          </div>
+
+        </div>
+      </div><!-- /raiseIncidentModal -->
+
       <div class="safety-subview" id="svRisk">
         <div class="stub-view"><div class="stub-icon">⚠️</div>
           <div class="stub-title">Risk Assessments</div>
@@ -2721,8 +2926,186 @@ function openSafetyView(viewId) {
   document.querySelectorAll('.safety-subnav-btn').forEach(b => {
     if (b.getAttribute('onclick')?.includes(viewId)) b.classList.add('active');
   });
-  if (viewId === 'svTalks') loadTalksList();
-  if (viewId === 'svBBS')   loadBBSList();
+  if (viewId === 'svTalks')     loadTalksList();
+  if (viewId === 'svBBS')       loadBBSList();
+  if (viewId === 'svIncidents') loadIncidentsList();
+}
+
+// ─── Incident Investigation ───────────────────────────────────────────────────
+
+let incStatusFilter = '';
+
+function filterIncidents(btn) {
+  document.querySelectorAll('#incFilters .filter-chip').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  incStatusFilter = btn.dataset.status || '';
+  loadIncidentsList();
+}
+
+async function loadIncidentsList() {
+  const list = $('incidentsList');
+  list.innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
+  try {
+    const qs = incStatusFilter ? `?status=${incStatusFilter}` : '';
+    const data = await apiFetch(`/incidents${qs}`);
+    const incidents = data.incidents || [];
+
+    if (!incidents.length) {
+      list.innerHTML = `<div class="empty">
+        <div class="empty-title">No incidents recorded</div>
+        <div class="empty-sub">Tap Raise to record an incident or near-miss.</div>
+      </div>`;
+      return;
+    }
+
+    list.innerHTML = '';
+    incidents.forEach(inc => renderIncidentRow(inc, list));
+  } catch (e) {
+    list.innerHTML = `<div class="empty" style="color:var(--md-danger)">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function renderIncidentRow(inc, container) {
+  const iconMap = {
+    section_24_serious: { emoji: '🚨', cls: 'section-24-serious' },
+    section_24_other:   { emoji: '⚠️', cls: 'section-24-other' },
+    medical_treatment:  { emoji: '🏥', cls: 'medical-treatment' },
+    near_miss:          { emoji: '👁',  cls: 'near-miss' },
+  };
+  const icon = iconMap[inc.classification] || { emoji: '📋', cls: '' };
+
+  const classLabel = {
+    section_24_serious: 'S24 Serious',
+    section_24_other:   'S24 Other',
+    medical_treatment:  'Medical',
+    near_miss:          'Near-miss',
+  }[inc.classification] || inc.classification;
+
+  const incidentDate = new Date(inc.incident_at);
+  const dateStr = incidentDate.toLocaleDateString('en-ZA', { day:'2-digit', month:'short', year:'numeric' });
+  const timeStr = incidentDate.toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
+
+  // Overdue flags
+  const now = Date.now();
+  const invOverdue = inc.investigation_due_at && !inc.investigation_completed_at &&
+    new Date(inc.investigation_due_at) < now;
+  const repOverdue = inc.formal_report_due_at && !inc.formal_report_sent &&
+    new Date(inc.formal_report_due_at) < now;
+  const isOverdue  = invOverdue || repOverdue;
+
+  const row = document.createElement('div');
+  row.className = 'inc-row';
+  row.innerHTML = `
+    <div class="inc-row-icon ${icon.cls}">${icon.emoji}</div>
+    <div class="inc-row-body">
+      <div class="inc-row-title">${escHtml(inc.affected_person_name)} — ${escHtml(inc.description.slice(0, 60))}${inc.description.length > 60 ? '…' : ''}</div>
+      <div class="inc-row-meta">
+        <span>${escHtml(inc.id)}</span>
+        <span>${dateStr} ${timeStr}</span>
+        ${inc.location_freetext ? `<span>${escHtml(inc.location_freetext)}</span>` : ''}
+        ${inc.investigator_name ? `<span>Inv: ${escHtml(inc.investigator_name)}</span>` : ''}
+      </div>
+      ${isOverdue ? `<div class="inc-overdue-flag" style="margin-top:4px;">
+        ⚠ ${invOverdue ? 'Investigation overdue' : 'Report overdue'}
+      </div>` : ''}
+    </div>
+    <div class="inc-row-right">
+      <span class="inc-class-pill ${inc.classification}">${escHtml(classLabel)}</span>
+      <span class="inc-status-pill ${inc.status}">${escHtml(inc.status.replace(/_/g,' '))}</span>
+    </div>`;
+
+  // Placeholder tap — detail screen comes next session
+  row.addEventListener('click', () => {
+    showToast(`${inc.id} — detail view coming next`, 'success');
+  });
+
+  container.appendChild(row);
+}
+
+// ── Raise incident sheet ──────────────────────────────────────────────────────
+
+function openRaiseIncidentSheet() {
+  const year = new Date().getFullYear();
+  $('incId').value = `INC-${year}-`;
+  $('incIdHint').textContent = '';
+
+  // Default datetime to now
+  const now = new Date();
+  now.setSeconds(0, 0);
+  $('incIncidentAt').value = now.toISOString().slice(0, 16);
+
+  // Reset all fields
+  $('incClassification').value   = '';
+  $('incClassHint').textContent  = '';
+  $('incDescription').value      = '';
+  $('incLocationFreetext').value = '';
+  $('incPersonName').value       = '';
+  $('incPersonType').value       = 'employee';
+  $('incBodyPart').value         = '';
+  $('incInjuryEffect').value     = '';
+  $('incMachinery').value        = '';
+  $('incSaveBtn').disabled       = false;
+  $('incSaveBtn').textContent    = 'Raise Incident';
+
+  $('raiseIncidentModal').classList.add('open');
+}
+
+function closeRaiseIncidentSheet() {
+  $('raiseIncidentModal').classList.remove('open');
+}
+
+function onIncClassChange() {
+  const cls   = $('incClassification').value;
+  const hints = {
+    section_24_serious: '⚠ Requires immediate telephone notification to Provincial Director, then formal report within 7 days.',
+    section_24_other:   'Formal written report required within 7 days of incident.',
+    medical_treatment:  'Internal recording required. No external report needed.',
+    near_miss:          'Internal recording only.',
+  };
+  $('incClassHint').textContent = hints[cls] || '';
+}
+
+async function saveIncident() {
+  const id             = $('incId').value.trim();
+  const classification = $('incClassification').value;
+  const incident_at    = $('incIncidentAt').value;
+  const description    = $('incDescription').value.trim();
+  const personName     = $('incPersonName').value.trim();
+  const personType     = $('incPersonType').value;
+
+  if (!id)             return showToast('Incident ID is required', 'error');
+  if (!classification) return showToast('Classification is required', 'error');
+  if (!incident_at)    return showToast('Date and time of incident is required', 'error');
+  if (!description)    return showToast('Description is required', 'error');
+  if (!personName)     return showToast('Affected person name is required', 'error');
+
+  $('incSaveBtn').disabled    = true;
+  $('incSaveBtn').textContent = 'Saving…';
+
+  try {
+    await apiFetch('/incidents', {
+      method: 'POST',
+      body: JSON.stringify({
+        id,
+        classification,
+        incident_at:          new Date(incident_at).toISOString(),
+        description,
+        affected_person_name: personName,
+        affected_person_type: personType,
+        location_freetext:    $('incLocationFreetext').value.trim() || null,
+        body_part:            $('incBodyPart').value.trim()          || null,
+        injury_effect:        $('incInjuryEffect').value             || null,
+        machinery_involved:   $('incMachinery').value.trim()         || null,
+      }),
+    });
+    showToast(`${id} recorded`);
+    closeRaiseIncidentSheet();
+    loadIncidentsList();
+  } catch (e) {
+    showToast(e.message, 'error');
+    $('incSaveBtn').disabled    = false;
+    $('incSaveBtn').textContent = 'Raise Incident';
+  }
 }
 
 // ─── Asset Hub: SWPs tab ──────────────────────────────────────────────────────
