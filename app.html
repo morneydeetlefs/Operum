@@ -911,6 +911,8 @@ body::before {
   background: rgba(0,0,0,.6); display: none; align-items: flex-end;
 }
 .inc-detail-modal.open { display: flex; }
+/* Secondary sheets launched from within the detail panel must sit above it */
+#assignInvModal, #findingsModal, #committeeReviewModal { z-index: 70; }
 .inc-detail-sheet {
   background: var(--md-dark);
   border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
