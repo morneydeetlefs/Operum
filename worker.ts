@@ -1860,10 +1860,11 @@ export default {
     //   Assign / update / close: admin, safety_manager, supervisor
     //   Read:                    MANAGE_ROLES
 
-    // ── POST /api/incidents ───────────────────────────────────────────────────
-    // Raise a new incident. System sets reported_at and formal_report_due_at.
+      // ── POST /api/incidents ───────────────────────────────────────────────────
+    // Raise a new incident. System generates INC-YYYY-NNN id and sets
+    // reported_at and formal_report_due_at.
     // Body: {
-    //   id, incident_at, description, classification,
+    //   incident_at, description, classification,
     //   affected_person_name, affected_person_type,
     //   location_asset_id?, location_freetext?,
     //   affected_person_id?, body_part?, injury_effect?, machinery_involved?
@@ -1872,7 +1873,6 @@ export default {
       if (!can(actor.role, READ_ROLES)) return err('Forbidden', 403, origin);
 
       const b = await req.json().catch(() => ({})) as {
-        id?: string;
         incident_at?: string;
         description?: string;
         classification?: string;
@@ -1886,7 +1886,6 @@ export default {
         machinery_involved?: string;
       };
 
-      if (!b.id?.trim())                    return err('id is required', 400, origin);
       if (!b.incident_at || isNaN(Date.parse(b.incident_at))) return err('incident_at must be a valid ISO date', 400, origin);
       if (!b.description?.trim())           return err('description is required', 400, origin);
       if (!b.affected_person_name?.trim())  return err('affected_person_name is required', 400, origin);
@@ -1903,9 +1902,13 @@ export default {
       if (b.injury_effect && !validInjuryEffects.includes(b.injury_effect))
         return err('Invalid injury_effect value', 400, origin);
 
-      // Duplicate check
-      const existing = await db.prepare('SELECT id FROM incidents WHERE id = ?').bind(b.id.trim()).first();
-      if (existing) return err(`Incident "${b.id}" already exists`, 409, origin);
+      // Generate ID: INC-YYYY-NNN (sequential within year)
+      const incYear = new Date().getFullYear().toString();
+      const countRow = await db.prepare(
+        `SELECT COUNT(*) AS n FROM incidents WHERE id LIKE ?`
+      ).bind(`INC-${incYear}-%`).first<{ n: number }>();
+      const incSeq = String((countRow?.n ?? 0) + 1).padStart(3, '0');
+      const incId  = `INC-${incYear}-${incSeq}`;
 
       const now = new Date().toISOString();
 
@@ -1925,7 +1928,7 @@ export default {
           formal_report_due_at, status, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
       `).bind(
-        b.id.trim(),
+        incId,
         actor.sub,
         now,
         b.incident_at,
@@ -1943,8 +1946,8 @@ export default {
         now,
       ).run();
 
-      await log(db, actor.sub, 'create', `incident:${b.id}`, { classification: b.classification }, ip);
-      const incident = await db.prepare('SELECT * FROM incidents WHERE id = ?').bind(b.id.trim()).first();
+      await log(db, actor.sub, 'create', `incident:${incId}`, { classification: b.classification }, ip);
+      const incident = await db.prepare('SELECT * FROM incidents WHERE id = ?').bind(incId).first();
       return json({ incident }, 201, origin);
     }
 

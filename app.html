@@ -905,6 +905,99 @@ body::before {
   color: var(--md-danger); letter-spacing: .04em;
   display: flex; align-items: center; gap: 3px;
 }
+/* ── Incident detail panel ───────────────────────────────────────────────────── */
+.inc-detail-modal {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,.6); display: none; align-items: flex-end;
+}
+.inc-detail-modal.open { display: flex; }
+.inc-detail-sheet {
+  background: var(--md-dark);
+  border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
+  border-top: 1px solid var(--md-border);
+  width: 100%; max-height: 92vh;
+  display: flex; flex-direction: column;
+  animation: slideUp .22s ease;
+}
+.inc-detail-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 0; flex-shrink: 0;
+}
+.inc-detail-id {
+  font-family: var(--font-brand); font-size: 1rem; font-weight: 600;
+  color: var(--md-gold-lt); letter-spacing: .06em;
+}
+.inc-detail-sub {
+  font-family: var(--font-mono); font-size: .68rem;
+  color: var(--md-gold-dk); margin-top: 3px; letter-spacing: .04em;
+}
+.inc-detail-tabs {
+  display: flex; border-bottom: 1px solid var(--md-border);
+  margin: 0 -0px; padding: 0 20px;
+  overflow-x: auto; scrollbar-width: none; flex-shrink: 0; margin-top: 12px;
+}
+.inc-detail-tabs::-webkit-scrollbar { display: none; }
+.inc-detail-tab {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: .65rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--md-muted); padding: 10px 14px 9px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.inc-detail-tab:hover { color: var(--md-gold-lt); }
+.inc-detail-tab.active { color: var(--md-gold); border-bottom-color: var(--md-gold); }
+.inc-detail-body {
+  flex: 1; overflow-y: auto; padding: 16px 20px 24px;
+}
+.inc-detail-panel { display: none; }
+.inc-detail-panel.active { display: block; }
+.inc-field-row {
+  display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;
+}
+.inc-field {
+  display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 120px;
+}
+.inc-field-label {
+  font-family: var(--font-mono); font-size: .6rem;
+  letter-spacing: .18em; text-transform: uppercase; color: var(--md-gold-dk);
+}
+.inc-field-value {
+  font-size: .88rem; color: var(--md-cream); line-height: 1.5;
+}
+.inc-field-value.muted { color: var(--md-muted); font-style: italic; }
+.inc-action-bar {
+  padding: 12px 20px; border-top: 1px solid var(--md-border);
+  display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+}
+.inc-narrative-box {
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); padding: 12px 14px;
+  font-size: .88rem; color: var(--md-cream); line-height: 1.6;
+  margin-bottom: 14px;
+}
+.inc-section-divider {
+  font-family: var(--font-mono); font-size: .6rem;
+  letter-spacing: .2em; text-transform: uppercase; color: var(--md-gold-dk);
+  margin: 16px 0 10px; padding-top: 14px; border-top: 1px solid var(--md-border);
+}
+.inc-inv-card {
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); padding: 12px 14px; margin-bottom: 10px;
+}
+.inc-witness-row {
+  background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); padding: 10px 14px; margin-bottom: 8px;
+}
+.inc-endorse-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: .62rem; letter-spacing: .06em;
+  padding: 3px 9px; border-radius: 20px;
+}
+.inc-endorse-pill.done    { background: rgba(76,175,122,.12); color: var(--md-success); }
+.inc-endorse-pill.pending { background: rgba(201,148,60,.10); color: var(--md-muted); }
+
 
 /* Raise incident bottom sheet */
 .inc-form { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px; }
@@ -1230,13 +1323,7 @@ body::before {
 
           <div class="inc-form">
 
-            <!-- Incident ID -->
-            <div class="form-field">
-              <label class="form-label">Incident ID <span class="form-required">*</span></label>
-              <input class="form-input" id="incId" type="text"
-                     placeholder="e.g. INC-2026-002" autocomplete="off"/>
-              <div class="form-hint" id="incIdHint"></div>
-            </div>
+            <!-- Incident ID auto-generated server-side (INC-YYYY-NNN) -->
 
             <!-- Classification -->
             <div class="form-field">
@@ -1326,6 +1413,269 @@ body::before {
 
         </div>
       </div><!-- /raiseIncidentModal -->
+      <!-- ── Incident detail panel ─────────────────────────────────────────────── -->
+      <div class="inc-detail-modal" id="incDetailModal"
+           onclick="if(event.target===this)closeIncidentDetail()">
+        <div class="inc-detail-sheet">
+
+          <!-- Header -->
+          <div class="inc-detail-header">
+            <div>
+              <div class="inc-detail-id" id="incDetailId">—</div>
+              <div class="inc-detail-sub" id="incDetailSub">—</div>
+            </div>
+            <button class="detail-sheet-close" onclick="closeIncidentDetail()">✕</button>
+          </div>
+
+          <!-- Status + classification pill strip -->
+          <div style="padding:10px 20px 0;display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0;"
+               id="incDetailPills"></div>
+
+          <!-- Tab bar -->
+          <div class="inc-detail-tabs">
+            <button class="inc-detail-tab active" onclick="openIncTab('overview')">Overview</button>
+            <button class="inc-detail-tab"        onclick="openIncTab('investigation')">Investigation</button>
+            <button class="inc-detail-tab"        onclick="openIncTab('committee')">Committee</button>
+            <button class="inc-detail-tab"        onclick="openIncTab('witnesses')">Witnesses</button>
+          </div>
+
+          <!-- Scrollable body -->
+          <div class="inc-detail-body">
+
+            <!-- ── Tab: Overview ── -->
+            <div class="inc-detail-panel active" id="incPanelOverview">
+
+              <!-- Narrative -->
+              <div class="inc-field-label" style="margin-bottom:6px;">What happened</div>
+              <div class="inc-narrative-box" id="incDetailDescription">—</div>
+
+              <!-- Key fields row -->
+              <div class="inc-field-row">
+                <div class="inc-field">
+                  <div class="inc-field-label">Incident date &amp; time</div>
+                  <div class="inc-field-value" id="incDetailAt">—</div>
+                </div>
+                <div class="inc-field">
+                  <div class="inc-field-label">Reported</div>
+                  <div class="inc-field-value" id="incDetailReportedAt">—</div>
+                </div>
+              </div>
+
+              <div class="inc-field-row">
+                <div class="inc-field">
+                  <div class="inc-field-label">Reported by</div>
+                  <div class="inc-field-value" id="incDetailReportedBy">—</div>
+                </div>
+                <div class="inc-field">
+                  <div class="inc-field-label">Location</div>
+                  <div class="inc-field-value" id="incDetailLocation">—</div>
+                </div>
+              </div>
+
+              <!-- Affected person -->
+              <div class="inc-section-divider">Affected Person</div>
+              <div class="inc-field-row">
+                <div class="inc-field">
+                  <div class="inc-field-label">Name</div>
+                  <div class="inc-field-value" id="incDetailPersonName">—</div>
+                </div>
+                <div class="inc-field">
+                  <div class="inc-field-label">Type</div>
+                  <div class="inc-field-value" id="incDetailPersonType">—</div>
+                </div>
+              </div>
+              <div class="inc-field-row">
+                <div class="inc-field">
+                  <div class="inc-field-label">Body part</div>
+                  <div class="inc-field-value" id="incDetailBodyPart">—</div>
+                </div>
+                <div class="inc-field">
+                  <div class="inc-field-label">Effect</div>
+                  <div class="inc-field-value" id="incDetailEffect">—</div>
+                </div>
+              </div>
+              <div class="inc-field-row" id="incDetailMachineryRow">
+                <div class="inc-field">
+                  <div class="inc-field-label">Machinery / process</div>
+                  <div class="inc-field-value" id="incDetailMachinery">—</div>
+                </div>
+              </div>
+
+              <!-- Section 24 reporting block — hidden for near_miss / medical_treatment -->
+              <div id="incDetailS24Block">
+                <div class="inc-section-divider">Section 24 Reporting</div>
+                <div class="inc-field-row">
+                  <div class="inc-field">
+                    <div class="inc-field-label">Formal report due</div>
+                    <div class="inc-field-value" id="incDetailReportDue">—</div>
+                  </div>
+                  <div class="inc-field">
+                    <div class="inc-field-label">Report status</div>
+                    <div class="inc-field-value" id="incDetailReportStatus">—</div>
+                  </div>
+                </div>
+                <!-- Immediate notification (section_24_serious only) -->
+                <div id="incDetailNotifyBlock">
+                  <div class="inc-field-row">
+                    <div class="inc-field">
+                      <div class="inc-field-label">Immediate notification</div>
+                      <div class="inc-field-value" id="incDetailNotifyStatus">—</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /incPanelOverview -->
+
+            <!-- ── Tab: Investigation ── -->
+            <div class="inc-detail-panel" id="incPanelInvestigation">
+              <div id="incInvContent">
+                <div class="loader"><div class="spin"></div> Loading…</div>
+              </div>
+            </div>
+
+            <!-- ── Tab: Committee ── -->
+            <div class="inc-detail-panel" id="incPanelCommittee">
+              <div id="incCommitteeContent">
+                <div class="loader"><div class="spin"></div> Loading…</div>
+              </div>
+            </div>
+
+            <!-- ── Tab: Witnesses ── -->
+            <div class="inc-detail-panel" id="incPanelWitnesses">
+              <div id="incWitnessContent">
+                <div class="loader"><div class="spin"></div> Loading…</div>
+              </div>
+              <!-- Add witness form (always visible at bottom of witnesses tab) -->
+              <div class="inc-section-divider">Add Witness</div>
+              <div style="display:flex;flex-direction:column;gap:10px;" id="incAddWitnessForm">
+                <div class="form-field">
+                  <label class="form-label">Name <span class="form-required">*</span></label>
+                  <input class="form-input" id="wName" type="text" placeholder="Full name"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Contact details <span class="form-required">*</span></label>
+                  <input class="form-input" id="wContact" type="text"
+                         placeholder="Phone or email — required for subpoena purposes"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Statement <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+                  <textarea class="form-input" id="wStatement" rows="3"
+                            placeholder="Witness account of the incident"
+                            style="resize:none;"></textarea>
+                </div>
+                <button class="btn btn-gold" id="wSaveBtn" onclick="saveWitness()"
+                        style="width:100%;">Add Witness</button>
+              </div>
+            </div>
+
+          </div><!-- /inc-detail-body -->
+
+          <!-- Action bar (context-sensitive, rendered by JS) -->
+          <div class="inc-action-bar" id="incDetailActionBar"></div>
+
+        </div>
+      </div><!-- /incDetailModal -->
+
+      <!-- ── Assign Investigator sheet ──────────────────────────────────────── -->
+      <div class="modal-backdrop" id="assignInvModal"
+           onclick="if(event.target===this)closeAssignInvestigatorSheet()">
+        <div class="modal-sheet">
+          <div class="detail-sheet-header">
+            <div class="detail-sheet-name">Assign Investigator</div>
+            <button class="detail-sheet-close" onclick="closeAssignInvestigatorSheet()">✕</button>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Search employee <span class="form-required">*</span></label>
+            <input class="form-input" id="assignInvName" type="search"
+                   placeholder="Type name…" autocomplete="off" spellcheck="false"
+                   oninput="searchEmpFor('assignInvName','assignInvResults','assignInvId','assignInvChosen')"/>
+            <div id="assignInvResults" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);border-radius:var(--md-radius);margin-top:4px;max-height:160px;overflow-y:auto;"></div>
+            <input type="hidden" id="assignInvId"/>
+            <div id="assignInvChosen" style="display:none;margin-top:6px;padding:6px 10px;background:var(--md-surface);border:1px solid var(--md-gold-dk);border-radius:var(--md-radius);font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);"></div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-outline" onclick="closeAssignInvestigatorSheet()">Cancel</button>
+            <button class="btn btn-gold" id="assignInvBtn" onclick="assignInvestigator()">Assign</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Submit Findings sheet ──────────────────────────────────────────── -->
+      <div class="modal-backdrop" id="findingsModal"
+           onclick="if(event.target===this)closeFindingsSheet()">
+        <div class="modal-sheet" style="max-height:88vh;">
+          <div class="detail-sheet-header">
+            <div class="detail-sheet-name">Investigation Findings</div>
+            <button class="detail-sheet-close" onclick="closeFindingsSheet()">✕</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding-bottom:8px;">
+            <div class="form-field">
+              <label class="form-label">Root cause <span class="form-required">*</span></label>
+              <textarea class="form-input" id="findingsRootCause" rows="3"
+                        placeholder="Primary cause of the incident" style="resize:none;"></textarea>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Findings <span class="form-required">*</span></label>
+              <textarea class="form-input" id="findingsText" rows="4"
+                        placeholder="Full investigation findings" style="resize:none;"></textarea>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Corrective actions <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <textarea class="form-input" id="findingsActions" rows="3"
+                        placeholder="Actions to prevent recurrence" style="resize:none;"></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-outline" onclick="closeFindingsSheet()">Cancel</button>
+            <button class="btn btn-gold" id="findingsSaveBtn" onclick="submitFindings()">Submit Findings</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Committee Review sheet ─────────────────────────────────────────── -->
+      <div class="modal-backdrop" id="committeeReviewModal"
+           onclick="if(event.target===this)closeCommitteeReviewSheet()">
+        <div class="modal-sheet" style="max-height:90vh;">
+          <div class="detail-sheet-header">
+            <div class="detail-sheet-name">Committee Review</div>
+            <button class="detail-sheet-close" onclick="closeCommitteeReviewSheet()">✕</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;overflow-y:auto;padding-bottom:8px;">
+            <div class="form-field">
+              <label class="form-label">Meeting date <span class="form-required">*</span></label>
+              <input class="form-input" id="committeeMeetingDate" type="date"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Chairperson <span class="form-required">*</span></label>
+              <input class="form-input" id="committeeChairName" type="search"
+                     placeholder="Type name…" autocomplete="off" spellcheck="false"
+                     oninput="searchEmpFor('committeeChairName','committeeChairResults','committeeChairId','committeeChairChosen')"/>
+              <div id="committeeChairResults" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);border-radius:var(--md-radius);margin-top:4px;max-height:140px;overflow-y:auto;"></div>
+              <input type="hidden" id="committeeChairId"/>
+              <div id="committeeChairChosen" style="display:none;margin-top:6px;padding:6px 10px;background:var(--md-surface);border:1px solid var(--md-gold-dk);border-radius:var(--md-radius);font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);"></div>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Employer representative <span class="form-required">*</span></label>
+              <input class="form-input" id="committeeEmployerName" type="search"
+                     placeholder="Type name…" autocomplete="off" spellcheck="false"
+                     oninput="searchEmpFor('committeeEmployerName','committeeEmployerResults','committeeEmployerId','committeeEmployerChosen')"/>
+              <div id="committeeEmployerResults" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);border-radius:var(--md-radius);margin-top:4px;max-height:140px;overflow-y:auto;"></div>
+              <input type="hidden" id="committeeEmployerId"/>
+              <div id="committeeEmployerChosen" style="display:none;margin-top:6px;padding:6px 10px;background:var(--md-surface);border:1px solid var(--md-gold-dk);border-radius:var(--md-radius);font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);"></div>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Remarks <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <textarea class="form-input" id="committeeRemarks" rows="3"
+                        placeholder="Committee notes and observations" style="resize:none;"></textarea>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-outline" onclick="closeCommitteeReviewSheet()">Cancel</button>
+            <button class="btn btn-gold" id="committeeSubmitBtn" onclick="submitCommitteeReview()">Record Review</button>
+          </div>
+        </div>
+      </div>
 
       <div class="safety-subview" id="svRisk">
         <div class="stub-view"><div class="stub-icon">⚠️</div>
@@ -2933,6 +3283,52 @@ function openSafetyView(viewId) {
 
 // ─── Incident Investigation ───────────────────────────────────────────────────
 
+// ── Generic employee search helper ───────────────────────────────────────────
+// Reuses the existing allEmployees cache; fetches once on first use.
+// GET /api/employees has no server-side search — filtering is client-side.
+
+let _empSearchDebounce = null;
+
+async function _ensureEmployees() {
+  if (allEmployees.length) return;
+  const data = await apiFetch('/employees');
+  allEmployees = data.employees || [];
+}
+
+function searchEmpFor(inputId, resultsId, hiddenId, chosenId) {
+  clearTimeout(_empSearchDebounce);
+  const q   = $(inputId).value.trim().toLowerCase();
+  const box = $(resultsId);
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  _empSearchDebounce = setTimeout(async () => {
+    try {
+      await _ensureEmployees();
+      const matches = allEmployees
+        .filter(e => (e.name || e.id).toLowerCase().includes(q))
+        .slice(0, 8);
+      if (!matches.length) { box.style.display = 'none'; return; }
+      box.innerHTML = matches.map(e => `
+        <div style="padding:8px 12px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--md-border);"
+             onmousedown="selectEmpFor('${escHtml(hiddenId)}','${escHtml(chosenId)}','${escHtml(inputId)}','${escHtml(resultsId)}','${escHtml(e.id)}','${escHtml(e.name)}')">
+          ${escHtml(e.name)}
+          <span style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);margin-left:6px;">${escHtml(e.id)}</span>
+        </div>`).join('');
+      box.style.display = 'block';
+    } catch (_) {}
+  }, 200);
+}
+
+function selectEmpFor(hiddenId, chosenId, inputId, resultsId, empId, empName) {
+  $(hiddenId).value          = empId;
+  $(inputId).value           = empName;
+  $(resultsId).style.display = 'none';
+  const chosen               = $(chosenId);
+  chosen.textContent         = `${empName} · ${empId}`;
+  chosen.style.display       = 'block';
+}
+
+// ── List ─────────────────────────────────────────────────────────────────────
+
 let incStatusFilter = '';
 
 function filterIncidents(btn) {
@@ -2985,7 +3381,6 @@ function renderIncidentRow(inc, container) {
   const dateStr = incidentDate.toLocaleDateString('en-ZA', { day:'2-digit', month:'short', year:'numeric' });
   const timeStr = incidentDate.toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
 
-  // Overdue flags
   const now = Date.now();
   const invOverdue = inc.investigation_due_at && !inc.investigation_completed_at &&
     new Date(inc.investigation_due_at) < now;
@@ -3014,21 +3409,13 @@ function renderIncidentRow(inc, container) {
       <span class="inc-status-pill ${inc.status}">${escHtml(inc.status.replace(/_/g,' '))}</span>
     </div>`;
 
-  // Placeholder tap — detail screen comes next session
-  row.addEventListener('click', () => {
-    showToast(`${inc.id} — detail view coming next`, 'success');
-  });
-
+  row.addEventListener('click', () => openIncidentDetail(inc.id));
   container.appendChild(row);
 }
 
 // ── Raise incident sheet ──────────────────────────────────────────────────────
 
 function openRaiseIncidentSheet() {
-  const year = new Date().getFullYear();
-  $('incId').value = `INC-${year}-`;
-  $('incIdHint').textContent = '';
-
   // Default datetime to now
   const now = new Date();
   now.setSeconds(0, 0);
@@ -3066,14 +3453,12 @@ function onIncClassChange() {
 }
 
 async function saveIncident() {
-  const id             = $('incId').value.trim();
   const classification = $('incClassification').value;
   const incident_at    = $('incIncidentAt').value;
   const description    = $('incDescription').value.trim();
   const personName     = $('incPersonName').value.trim();
   const personType     = $('incPersonType').value;
 
-  if (!id)             return showToast('Incident ID is required', 'error');
   if (!classification) return showToast('Classification is required', 'error');
   if (!incident_at)    return showToast('Date and time of incident is required', 'error');
   if (!description)    return showToast('Description is required', 'error');
@@ -3083,10 +3468,9 @@ async function saveIncident() {
   $('incSaveBtn').textContent = 'Saving…';
 
   try {
-    await apiFetch('/incidents', {
+    const result = await apiFetch('/incidents', {
       method: 'POST',
       body: JSON.stringify({
-        id,
         classification,
         incident_at:          new Date(incident_at).toISOString(),
         description,
@@ -3098,13 +3482,554 @@ async function saveIncident() {
         machinery_involved:   $('incMachinery').value.trim()         || null,
       }),
     });
-    showToast(`${id} recorded`);
+    const assignedId = result.incident?.id || 'recorded';
+    showToast(`${assignedId} raised`);
     closeRaiseIncidentSheet();
     loadIncidentsList();
   } catch (e) {
     showToast(e.message, 'error');
     $('incSaveBtn').disabled    = false;
     $('incSaveBtn').textContent = 'Raise Incident';
+  }
+}
+
+// ── Incident detail panel ─────────────────────────────────────────────────────
+
+let _incDetail = null;   // cached full detail object for the open incident
+
+async function openIncidentDetail(incId) {
+  $('incDetailId').textContent  = incId;
+  $('incDetailSub').textContent = 'Loading…';
+  $('incDetailPills').innerHTML = '';
+  $('incDetailActionBar').innerHTML = '';
+  openIncTab('overview');
+  $('incDetailModal').classList.add('open');
+
+  try {
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+  } catch (e) {
+    $('incDetailSub').textContent = 'Error loading incident';
+    showToast(e.message, 'error');
+  }
+}
+
+function closeIncidentDetail() {
+  $('incDetailModal').classList.remove('open');
+  _incDetail = null;
+}
+
+function openIncTab(tabId) {
+  const tabs   = ['overview','investigation','committee','witnesses'];
+  const panels = ['incPanelOverview','incPanelInvestigation','incPanelCommittee','incPanelWitnesses'];
+  document.querySelectorAll('.inc-detail-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', tabs[i] === tabId);
+  });
+  panels.forEach(pid => {
+    const el = $(pid);
+    if (el) el.classList.toggle('active', pid === panels[tabs.indexOf(tabId)]);
+  });
+
+  // Lazy-render tab content when first opened
+  if (_incDetail) {
+    if (tabId === 'investigation') renderInvestigationTab(_incDetail);
+    if (tabId === 'committee')     renderCommitteeTab(_incDetail);
+    if (tabId === 'witnesses')     renderWitnessesTab(_incDetail);
+  }
+}
+
+function renderIncidentDetail(data) {
+  const inc = data.incident;
+
+  $('incDetailId').textContent  = inc.id;
+  $('incDetailSub').textContent = `${inc.affected_person_name} · ${inc.affected_person_type}`;
+
+  const classLabel = {
+    section_24_serious: 'S24 Serious',
+    section_24_other:   'S24 Other',
+    medical_treatment:  'Medical',
+    near_miss:          'Near-miss',
+  }[inc.classification] || inc.classification;
+
+  $('incDetailPills').innerHTML = `
+    <span class="inc-class-pill ${inc.classification}">${escHtml(classLabel)}</span>
+    <span class="inc-status-pill ${inc.status}">${escHtml(inc.status.replace(/_/g,' '))}</span>
+  `;
+
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleString('en-ZA', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : '—';
+
+  $('incDetailDescription').textContent = inc.description;
+  $('incDetailAt').textContent          = fmtDate(inc.incident_at);
+  $('incDetailReportedAt').textContent  = fmtDate(inc.reported_at);
+  $('incDetailReportedBy').textContent  = inc.reported_by_name || inc.reported_by || '—';
+  $('incDetailLocation').textContent    = inc.location_freetext || '—';
+  $('incDetailPersonName').textContent  = inc.affected_person_name;
+  $('incDetailPersonType').textContent  = inc.affected_person_type === 'contractor' ? 'Contractor' : 'Employee';
+
+  const effectLabel = {
+    death: 'Death', unconscious: 'Unconsciousness', limb_loss: 'Loss of limb',
+    incapacity_14d: 'Incapacity ≥ 14 days', dangerous_substance: 'Dangerous substance exposure',
+    pressure_release: 'Uncontrolled pressure release', machinery_failure: 'Machinery failure',
+    machinery_runaway: 'Machinery runaway', other: 'Other',
+  };
+
+  const bodyPartEl = $('incDetailBodyPart');
+  bodyPartEl.textContent = inc.body_part || '—';
+  bodyPartEl.className   = 'inc-field-value' + (inc.body_part ? '' : ' muted');
+
+  const effectEl = $('incDetailEffect');
+  effectEl.textContent = inc.injury_effect ? (effectLabel[inc.injury_effect] || inc.injury_effect) : '—';
+  effectEl.className   = 'inc-field-value' + (inc.injury_effect ? '' : ' muted');
+
+  const machineryRow = $('incDetailMachineryRow');
+  if (inc.machinery_involved) {
+    machineryRow.style.display = '';
+    $('incDetailMachinery').textContent = inc.machinery_involved;
+  } else {
+    machineryRow.style.display = 'none';
+  }
+
+  const isSection24 = ['section_24_serious','section_24_other'].includes(inc.classification);
+  $('incDetailS24Block').style.display = isSection24 ? '' : 'none';
+
+  if (isSection24) {
+    const due     = inc.formal_report_due_at ? new Date(inc.formal_report_due_at) : null;
+    const overdue = due && !inc.formal_report_sent && due < Date.now();
+    $('incDetailReportDue').innerHTML = due
+      ? `${due.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'})}${overdue ? ' <span style="color:var(--md-danger)">⚠ Overdue</span>' : ''}`
+      : '—';
+    $('incDetailReportStatus').textContent = inc.formal_report_sent
+      ? `Sent ${fmtDate(inc.formal_report_sent_at)}`
+      : 'Not yet sent';
+
+    const notifyBlock = $('incDetailNotifyBlock');
+    notifyBlock.style.display = inc.classification === 'section_24_serious' ? '' : 'none';
+    if (inc.classification === 'section_24_serious') {
+      $('incDetailNotifyStatus').textContent = inc.immediate_notification_sent
+        ? `Sent ${fmtDate(inc.immediate_notification_at)}`
+        : 'Not yet recorded';
+    }
+  }
+
+  renderIncidentActionBar(inc);
+}
+
+function renderIncidentActionBar(inc) {
+  const bar       = $('incDetailActionBar');
+  bar.innerHTML   = '';
+  const isSection24 = ['section_24_serious','section_24_other'].includes(inc.classification);
+  const isClosed    = inc.status === 'closed';
+
+  if (inc.classification === 'section_24_serious' && !inc.immediate_notification_sent && !isClosed) {
+    const btn = document.createElement('button');
+    btn.className   = 'btn btn-danger';
+    btn.style.fontSize = '.8rem';
+    btn.textContent = '⚡ Record Notification';
+    btn.onclick     = () => recordNotification(inc.id);
+    bar.appendChild(btn);
+  }
+
+  if (isSection24 && !inc.formal_report_sent && !isClosed) {
+    const btn = document.createElement('button');
+    btn.className   = 'btn btn-outline';
+    btn.style.fontSize = '.8rem';
+    btn.textContent = 'Mark Report Sent';
+    btn.onclick     = () => markFormalReportSent(inc.id);
+    bar.appendChild(btn);
+  }
+
+  if (inc.status === 'open') {
+    const btn = document.createElement('button');
+    btn.className   = 'btn btn-gold';
+    btn.style.fontSize = '.8rem';
+    btn.textContent = 'Assign Investigator';
+    btn.onclick     = () => openAssignInvestigatorSheet(inc.id);
+    bar.appendChild(btn);
+  }
+}
+
+// ── Investigation tab ─────────────────────────────────────────────────────────
+
+function renderInvestigationTab(data) {
+  const inc  = data.incident;
+  const invs = data.investigations || [];
+  const el   = $('incInvContent');
+
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleString('en-ZA', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : '—';
+
+  if (!invs.length) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-title">No investigator assigned</div>
+        <div class="empty-sub">Use the Assign Investigator button to open an investigation.</div>
+      </div>`;
+    return;
+  }
+
+  el.innerHTML = invs.map(inv => {
+    const due     = inv.investigation_due_at ? new Date(inv.investigation_due_at) : null;
+    const overdue = due && !inv.completed_at && due < Date.now();
+    return `
+      <div class="inc-inv-card">
+        <div class="inc-field-row">
+          <div class="inc-field">
+            <div class="inc-field-label">Investigator</div>
+            <div class="inc-field-value">${escHtml(inv.investigator_name || inv.investigator_id)}</div>
+          </div>
+          <div class="inc-field">
+            <div class="inc-field-label">Assigned</div>
+            <div class="inc-field-value">${fmtDate(inv.assigned_at)}</div>
+          </div>
+        </div>
+        <div class="inc-field-row">
+          <div class="inc-field">
+            <div class="inc-field-label">Due</div>
+            <div class="inc-field-value">${due ? due.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) : '—'}${overdue ? ' <span style="color:var(--md-danger)">⚠ Overdue</span>' : ''}</div>
+          </div>
+          <div class="inc-field">
+            <div class="inc-field-label">Completed</div>
+            <div class="inc-field-value">${inv.completed_at ? fmtDate(inv.completed_at) : '<span style="color:var(--md-muted)">In progress</span>'}</div>
+          </div>
+        </div>
+        ${inv.root_cause ? `
+          <div class="inc-section-divider" style="margin-top:10px;">Root Cause</div>
+          <div class="inc-narrative-box">${escHtml(inv.root_cause)}</div>` : ''}
+        ${inv.findings ? `
+          <div class="inc-section-divider">Findings</div>
+          <div class="inc-narrative-box">${escHtml(inv.findings)}</div>` : ''}
+        ${inv.corrective_actions ? `
+          <div class="inc-section-divider">Corrective Actions</div>
+          <div class="inc-narrative-box">${escHtml(inv.corrective_actions)}</div>` : ''}
+        ${!inv.completed_at && inc.status === 'under_investigation' ? `
+          <div style="margin-top:10px;">
+            <button class="btn btn-gold" style="width:100%;font-size:.8rem;"
+                    onclick="openSubmitFindingsSheet('${escHtml(inc.id)}')">Submit Findings</button>
+          </div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// ── Committee tab ─────────────────────────────────────────────────────────────
+
+function renderCommitteeTab(data) {
+  const inc     = data.incident;
+  const reviews = data.reviews || [];
+  const el      = $('incCommitteeContent');
+
+  const fmtDate = iso => iso
+    ? new Date(iso).toLocaleString('en-ZA', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' })
+    : null;
+
+  if (!reviews.length) {
+    const canAddReview = inc.status === 'pending_committee';
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-title">No committee review recorded</div>
+        <div class="empty-sub">${canAddReview
+          ? 'Investigation is complete. Record the committee review below.'
+          : 'Available after investigation findings are submitted.'}</div>
+      </div>
+      ${canAddReview ? `
+        <button class="btn btn-gold" style="width:100%;margin-top:12px;font-size:.8rem;"
+                onclick="openCommitteeReviewSheet('${escHtml(inc.id)}')">Record Committee Review</button>
+      ` : ''}`;
+    return;
+  }
+
+  el.innerHTML = reviews.map(r => `
+    <div class="inc-inv-card">
+      <div class="inc-field-row">
+        <div class="inc-field">
+          <div class="inc-field-label">Meeting date</div>
+          <div class="inc-field-value">${escHtml(r.meeting_date)}</div>
+        </div>
+        <div class="inc-field">
+          <div class="inc-field-label">Chairperson</div>
+          <div class="inc-field-value">${escHtml(r.chairperson_name || r.chairperson_id)}</div>
+        </div>
+      </div>
+      ${r.committee_remarks ? `
+        <div class="inc-section-divider" style="margin-top:8px;">Remarks</div>
+        <div class="inc-narrative-box">${escHtml(r.committee_remarks)}</div>` : ''}
+      <div class="inc-section-divider" style="margin-top:8px;">Endorsements</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <span class="inc-endorse-pill ${r.chairperson_endorsed_at ? 'done' : 'pending'}">
+          ${r.chairperson_endorsed_at ? '✓' : '○'} Chairperson ${r.chairperson_endorsed_at ? fmtDate(r.chairperson_endorsed_at) : 'pending'}
+        </span>
+        <span class="inc-endorse-pill ${r.employer_endorsed_at ? 'done' : 'pending'}">
+          ${r.employer_endorsed_at ? '✓' : '○'} Employer ${r.employer_endorsed_at ? fmtDate(r.employer_endorsed_at) : 'pending'}
+        </span>
+      </div>
+      ${!r.chairperson_endorsed_at && inc.status !== 'closed' ? `
+        <button class="btn btn-outline" style="font-size:.8rem;margin-right:8px;"
+                onclick="endorseIncident('${escHtml(inc.id)}','chairperson')">Chairperson Endorse</button>` : ''}
+      ${r.chairperson_endorsed_at && !r.employer_endorsed_at && inc.status !== 'closed' ? `
+        <button class="btn btn-gold" style="font-size:.8rem;"
+                onclick="endorseIncident('${escHtml(inc.id)}','employer')">Employer Endorse &amp; Close</button>` : ''}
+    </div>
+  `).join('');
+}
+
+// ── Witnesses tab ─────────────────────────────────────────────────────────────
+
+function renderWitnessesTab(data) {
+  const witnesses = data.witnesses || [];
+  const el = $('incWitnessContent');
+
+  if (!witnesses.length) {
+    el.innerHTML = `<div class="empty" style="margin-bottom:8px;">
+      <div class="empty-title">No witnesses recorded</div>
+      <div class="empty-sub">Use the form below to add a witness statement.</div>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = witnesses.map(w => `
+    <div class="inc-witness-row">
+      <div class="inc-field-row" style="margin-bottom:4px;">
+        <div class="inc-field">
+          <div class="inc-field-label">Name</div>
+          <div class="inc-field-value">${escHtml(w.witness_name)}</div>
+        </div>
+        <div class="inc-field">
+          <div class="inc-field-label">Contact</div>
+          <div class="inc-field-value">${escHtml(w.contact_details)}</div>
+        </div>
+      </div>
+      ${w.statement ? `<div style="font-size:.82rem;color:var(--md-muted);margin-top:6px;line-height:1.5;">${escHtml(w.statement)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ── Action handlers ───────────────────────────────────────────────────────────
+
+async function recordNotification(incId) {
+  if (!confirm('Record that immediate telephone notification was made to the Provincial Director?')) return;
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/notify`, { method: 'POST' });
+    showToast('Notification recorded');
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function markFormalReportSent(incId) {
+  if (!confirm('Mark the formal written report as sent to the Dept of Employment & Labour?')) return;
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/formal-report`, { method: 'POST' });
+    showToast('Formal report marked as sent');
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+    openIncTab('overview');
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+async function endorseIncident(incId, role) {
+  const label = role === 'chairperson'
+    ? 'chairperson endorsement'
+    : 'employer endorsement (this will close the incident)';
+  if (!confirm(`Record ${label}? This action is permanent.`)) return;
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/endorse/${role}`, { method: 'POST' });
+    showToast(role === 'employer' ? 'Incident closed' : 'Endorsement recorded');
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+    renderCommitteeTab(data);
+    loadIncidentsList();
+  } catch (e) { showToast(e.message, 'error'); }
+}
+
+// ── Assign investigator sheet ─────────────────────────────────────────────────
+
+let _assignIncId = null;
+
+function openAssignInvestigatorSheet(incId) {
+  _assignIncId = incId;
+  $('assignInvName').value            = '';
+  $('assignInvResults').style.display = 'none';
+  $('assignInvId').value              = '';
+  $('assignInvChosen').style.display  = 'none';
+  $('assignInvBtn').disabled          = false;
+  $('assignInvBtn').textContent       = 'Assign';
+  $('assignInvModal').classList.add('open');
+}
+
+function closeAssignInvestigatorSheet() {
+  $('assignInvModal').classList.remove('open');
+  _assignIncId = null;
+}
+
+async function assignInvestigator() {
+  const invId = $('assignInvId').value.trim();
+  if (!invId) return showToast('Select an employee first', 'error');
+  $('assignInvBtn').disabled    = true;
+  $('assignInvBtn').textContent = 'Assigning…';
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(_assignIncId)}/investigate`, {
+      method: 'POST',
+      body: JSON.stringify({ investigator_id: invId }),
+    });
+    showToast('Investigator assigned');
+    closeAssignInvestigatorSheet();
+    const data = await apiFetch(`/incidents/${encodeURIComponent(_assignIncId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+    renderInvestigationTab(data);
+    openIncTab('investigation');
+    loadIncidentsList();
+  } catch (e) {
+    showToast(e.message, 'error');
+    $('assignInvBtn').disabled    = false;
+    $('assignInvBtn').textContent = 'Assign';
+  }
+}
+
+// ── Submit findings sheet ─────────────────────────────────────────────────────
+
+let _findingsIncId = null;
+
+function openSubmitFindingsSheet(incId) {
+  _findingsIncId = incId;
+  $('findingsRootCause').value     = '';
+  $('findingsText').value          = '';
+  $('findingsActions').value       = '';
+  $('findingsSaveBtn').disabled    = false;
+  $('findingsSaveBtn').textContent = 'Submit Findings';
+  $('findingsModal').classList.add('open');
+}
+
+function closeFindingsSheet() {
+  $('findingsModal').classList.remove('open');
+  _findingsIncId = null;
+}
+
+async function submitFindings() {
+  const rootCause = $('findingsRootCause').value.trim();
+  const findings  = $('findingsText').value.trim();
+  const actions   = $('findingsActions').value.trim();
+  if (!rootCause) return showToast('Root cause is required', 'error');
+  if (!findings)  return showToast('Findings are required', 'error');
+  $('findingsSaveBtn').disabled    = true;
+  $('findingsSaveBtn').textContent = 'Submitting…';
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(_findingsIncId)}/investigate`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        root_cause:         rootCause,
+        findings,
+        corrective_actions: actions || null,
+        completed_at:       new Date().toISOString(),
+      }),
+    });
+    showToast('Findings submitted');
+    closeFindingsSheet();
+    const data = await apiFetch(`/incidents/${encodeURIComponent(_findingsIncId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+    renderInvestigationTab(data);
+    openIncTab('investigation');
+    loadIncidentsList();
+  } catch (e) {
+    showToast(e.message, 'error');
+    $('findingsSaveBtn').disabled    = false;
+    $('findingsSaveBtn').textContent = 'Submit Findings';
+  }
+}
+
+// ── Committee review sheet ────────────────────────────────────────────────────
+
+let _committeeIncId = null;
+
+function openCommitteeReviewSheet(incId) {
+  _committeeIncId = incId;
+  $('committeeMeetingDate').value              = new Date().toISOString().slice(0, 10);
+  $('committeeChairName').value               = '';
+  $('committeeChairResults').style.display    = 'none';
+  $('committeeChairId').value                 = '';
+  $('committeeChairChosen').style.display     = 'none';
+  $('committeeEmployerName').value            = '';
+  $('committeeEmployerResults').style.display = 'none';
+  $('committeeEmployerId').value              = '';
+  $('committeeEmployerChosen').style.display  = 'none';
+  $('committeeRemarks').value                 = '';
+  $('committeeSubmitBtn').disabled            = false;
+  $('committeeSubmitBtn').textContent         = 'Record Review';
+  $('committeeReviewModal').classList.add('open');
+}
+
+function closeCommitteeReviewSheet() {
+  $('committeeReviewModal').classList.remove('open');
+  _committeeIncId = null;
+}
+
+async function submitCommitteeReview() {
+  const chairId    = $('committeeChairId').value.trim();
+  const employerId = $('committeeEmployerId').value.trim();
+  const meetDate   = $('committeeMeetingDate').value;
+  if (!meetDate)   return showToast('Meeting date is required', 'error');
+  if (!chairId)    return showToast('Select a chairperson', 'error');
+  if (!employerId) return showToast('Select an employer representative', 'error');
+  $('committeeSubmitBtn').disabled    = true;
+  $('committeeSubmitBtn').textContent = 'Saving…';
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(_committeeIncId)}/committee-review`, {
+      method: 'POST',
+      body: JSON.stringify({
+        meeting_date:      meetDate,
+        chairperson_id:    chairId,
+        employer_id:       employerId,
+        committee_remarks: $('committeeRemarks').value.trim() || null,
+      }),
+    });
+    showToast('Committee review recorded');
+    closeCommitteeReviewSheet();
+    const data = await apiFetch(`/incidents/${encodeURIComponent(_committeeIncId)}`);
+    _incDetail = data;
+    renderIncidentDetail(data);
+    renderCommitteeTab(data);
+    openIncTab('committee');
+  } catch (e) {
+    showToast(e.message, 'error');
+    $('committeeSubmitBtn').disabled    = false;
+    $('committeeSubmitBtn').textContent = 'Record Review';
+  }
+}
+
+// ── Add witness ───────────────────────────────────────────────────────────────
+
+async function saveWitness() {
+  if (!_incDetail) return;
+  const incId   = _incDetail.incident.id;
+  const name    = $('wName').value.trim();
+  const contact = $('wContact').value.trim();
+  const stmt    = $('wStatement').value.trim();
+  if (!name)    return showToast('Witness name is required', 'error');
+  if (!contact) return showToast('Contact details are required', 'error');
+  $('wSaveBtn').disabled    = true;
+  $('wSaveBtn').textContent = 'Saving…';
+  try {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/witnesses`, {
+      method: 'POST',
+      body: JSON.stringify({ witness_name: name, contact_details: contact, statement: stmt || null }),
+    });
+    showToast('Witness added');
+    $('wName').value = $('wContact').value = $('wStatement').value = '';
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
+    _incDetail = data;
+    renderWitnessesTab(data);
+  } catch (e) {
+    showToast(e.message, 'error');
+  } finally {
+    $('wSaveBtn').disabled    = false;
+    $('wSaveBtn').textContent = 'Add Witness';
   }
 }
 
