@@ -3870,16 +3870,17 @@ function closeAssignInvestigatorSheet() {
 async function assignInvestigator() {
   const invId = $('assignInvId').value.trim();
   if (!invId) return showToast('Select an employee first', 'error');
+  const incId = _assignIncId;   // capture before sheet close nulls the variable
   $('assignInvBtn').disabled    = true;
   $('assignInvBtn').textContent = 'Assigning…';
   try {
-    await apiFetch(`/incidents/${encodeURIComponent(_assignIncId)}/investigate`, {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/investigate`, {
       method: 'POST',
       body: JSON.stringify({ investigator_id: invId }),
     });
     showToast('Investigator assigned');
     closeAssignInvestigatorSheet();
-    const data = await apiFetch(`/incidents/${encodeURIComponent(_assignIncId)}`);
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
     _incDetail = data;
     renderIncidentDetail(data);
     renderInvestigationTab(data);
@@ -3917,10 +3918,11 @@ async function submitFindings() {
   const actions   = $('findingsActions').value.trim();
   if (!rootCause) return showToast('Root cause is required', 'error');
   if (!findings)  return showToast('Findings are required', 'error');
+  const incId = _findingsIncId;   // capture before sheet close nulls the variable
   $('findingsSaveBtn').disabled    = true;
   $('findingsSaveBtn').textContent = 'Submitting…';
   try {
-    await apiFetch(`/incidents/${encodeURIComponent(_findingsIncId)}/investigate`, {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/investigate`, {
       method: 'PATCH',
       body: JSON.stringify({
         root_cause:         rootCause,
@@ -3931,7 +3933,7 @@ async function submitFindings() {
     });
     showToast('Findings submitted');
     closeFindingsSheet();
-    const data = await apiFetch(`/incidents/${encodeURIComponent(_findingsIncId)}`);
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
     _incDetail = data;
     renderIncidentDetail(data);
     renderInvestigationTab(data);
@@ -3977,10 +3979,11 @@ async function submitCommitteeReview() {
   if (!meetDate)   return showToast('Meeting date is required', 'error');
   if (!chairId)    return showToast('Select a chairperson', 'error');
   if (!employerId) return showToast('Select an employer representative', 'error');
+  const incId = _committeeIncId;   // capture before sheet close nulls the variable
   $('committeeSubmitBtn').disabled    = true;
   $('committeeSubmitBtn').textContent = 'Saving…';
   try {
-    await apiFetch(`/incidents/${encodeURIComponent(_committeeIncId)}/committee-review`, {
+    await apiFetch(`/incidents/${encodeURIComponent(incId)}/committee-review`, {
       method: 'POST',
       body: JSON.stringify({
         meeting_date:      meetDate,
@@ -3991,7 +3994,7 @@ async function submitCommitteeReview() {
     });
     showToast('Committee review recorded');
     closeCommitteeReviewSheet();
-    const data = await apiFetch(`/incidents/${encodeURIComponent(_committeeIncId)}`);
+    const data = await apiFetch(`/incidents/${encodeURIComponent(incId)}`);
     _incDetail = data;
     renderIncidentDetail(data);
     renderCommitteeTab(data);
