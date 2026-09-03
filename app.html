@@ -3,7 +3,17 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-<meta name="theme-color" content="#110e09"/>
+<meta name="theme-color" content="#110e09" id="themeColorMeta"/>
+<script>
+  // Apply saved colour mode before first paint — prevents flash
+  (function(){
+    var t = localStorage.getItem('operum_theme') || 'normal';
+    document.documentElement.setAttribute('data-theme', t);
+    var colours = { normal:'#110e09', daylight:'#faf8f2', 'high-contrast':'#0a0a0a' };
+    var m = document.getElementById('themeColorMeta');
+    if (m) m.setAttribute('content', colours[t] || '#110e09');
+  })();
+</script>
 <meta name="mobile-web-app-capable" content="yes"/>
 <title>Operum</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
@@ -35,6 +45,68 @@
   --font-mono:    'Syne Mono', monospace;
   --header-h:     56px;
   --nav-h:        64px;
+}
+
+/* ── Colour mode: Daylight ──────────────────────────────────────────────────── */
+:root[data-theme="daylight"] {
+  --md-black:     #f5f3ed;
+  --md-dark:      #faf8f2;
+  --md-surface:   #f0ede5;
+  --md-panel:     #ebe8dc;
+  --md-border:    #dfd9cd;
+  --md-border-lt: #cdc4b0;
+  --md-gold-dk:   #7a5815;
+  --md-gold:      #c9943c;
+  --md-gold-lt:   #c9943c;
+  --md-gold-glow: rgba(201,148,60,.08);
+  --md-cream:     #2d2620;
+  --md-muted:     #6b6456;
+}
+
+/* ── Colour mode: High contrast ─────────────────────────────────────────────── */
+:root[data-theme="high-contrast"] {
+  --md-black:     #000000;
+  --md-dark:      #0a0a0a;
+  --md-surface:   #141414;
+  --md-panel:     #1e1e1e;
+  --md-border:    #ffffff;
+  --md-border-lt: #ffffff;
+  --md-gold-dk:   #ffe033;
+  --md-gold:      #ffe033;
+  --md-gold-lt:   #ffe033;
+  --md-gold-glow: rgba(255,224,51,.12);
+  --md-cream:     #ffffff;
+  --md-muted:     #cccccc;
+}
+
+/* ── Smooth mode transition ─────────────────────────────────────────────────── */
+html { transition: background-color .25s, color .25s; }
+
+/* ── Daylight: ensure native inputs/selects stay readable ───────────────────── */
+:root[data-theme="daylight"] input,
+:root[data-theme="daylight"] select,
+:root[data-theme="daylight"] textarea {
+  color-scheme: light;
+}
+
+/* ── High contrast: thicken all borders, bump font weight on labels ─────────── */
+:root[data-theme="high-contrast"] .form-label,
+:root[data-theme="high-contrast"] .inc-field-label,
+:root[data-theme="high-contrast"] .section-title {
+  font-weight: 700;
+}
+:root[data-theme="high-contrast"] .form-input,
+:root[data-theme="high-contrast"] .form-select,
+:root[data-theme="high-contrast"] select,
+:root[data-theme="high-contrast"] input,
+:root[data-theme="high-contrast"] textarea {
+  border-width: 2px;
+  color-scheme: dark;
+}
+:root[data-theme="high-contrast"] .inc-row:hover,
+:root[data-theme="high-contrast"] .asset-row:hover {
+  outline: 2px solid var(--md-gold);
+  outline-offset: -2px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1086,6 +1158,84 @@ body::before {
 .bbs-comment-input:focus { border-color: var(--md-gold-dk); }
 .bbs-comment-input.visible { display: block; }
 
+/* ── Theme selector button (in header) ──────────────────────────────────────── */
+#themeBtn {
+  width: 28px; height: 28px; flex-shrink: 0;
+  background: var(--md-panel);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  color: var(--md-gold-dk);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color .2s, color .2s;
+  font-size: .9rem; padding: 0;
+}
+#themeBtn:hover { border-color: var(--md-gold-dk); color: var(--md-gold); }
+
+/* ── Theme settings sheet ────────────────────────────────────────────────────── */
+#themeSheet {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  pointer-events: none; opacity: 0;
+  transition: opacity .2s;
+}
+#themeSheet.open { pointer-events: all; opacity: 1; }
+#themeSheet-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,.55);
+}
+#themeSheet-panel {
+  position: relative; z-index: 1;
+  background: var(--md-surface);
+  border-top: 1px solid var(--md-border);
+  border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
+  padding: 20px 20px 32px;
+  transform: translateY(100%);
+  transition: transform .28s cubic-bezier(.34,1.2,.64,1);
+}
+#themeSheet.open #themeSheet-panel { transform: translateY(0); }
+.theme-sheet-title {
+  font-family: var(--font-brand);
+  font-size: .78rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--md-gold-dk); margin-bottom: 16px;
+}
+.theme-tiles {
+  display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+}
+.theme-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 8px 12px;
+  background: var(--md-panel);
+  border: 2px solid var(--md-border);
+  border-radius: var(--md-radius-lg);
+  cursor: pointer; transition: border-color .18s, background .18s;
+  -webkit-tap-highlight-color: transparent;
+}
+.theme-tile:hover { border-color: var(--md-gold-dk); }
+.theme-tile.active { border-color: var(--md-gold); background: var(--md-surface); }
+.theme-tile-preview {
+  width: 48px; height: 32px; border-radius: 5px;
+  border: 1px solid rgba(255,255,255,.08);
+  overflow: hidden; display: flex; flex-direction: column;
+  flex-shrink: 0;
+}
+.theme-tile-preview-top { flex: 1; }
+.theme-tile-preview-bar { height: 10px; }
+/* Normal preview */
+.preview-normal .theme-tile-preview-top { background: #1a1610; }
+.preview-normal .theme-tile-preview-bar { background: #c9943c; }
+/* Daylight preview */
+.preview-daylight .theme-tile-preview-top { background: #f0ede5; }
+.preview-daylight .theme-tile-preview-bar { background: #c9943c; }
+/* High contrast preview */
+.preview-hicontrast .theme-tile-preview-top { background: #0a0a0a; }
+.preview-hicontrast .theme-tile-preview-bar { background: #ffe033; }
+.theme-tile-label {
+  font-family: var(--font-mono);
+  font-size: .62rem; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--md-muted); text-align: center;
+}
+.theme-tile.active .theme-tile-label { color: var(--md-gold); }
+
 /* ── Loader ─────────────────────────────────────────────────────────────────── */
 .loader {
   display: flex; align-items: center; justify-content: center;
@@ -1128,6 +1278,7 @@ body::before {
     <select id="headerAreaSelect" title="Filter by area">
       <option value="all">All Areas</option>
     </select>
+    <button id="themeBtn" title="Colour mode" onclick="openThemeSheet()">◐</button>
     <div class="header-user">
       <div class="header-user-name" id="headerName">—</div>
       <div class="header-user-role" id="headerRole">—</div>
@@ -1357,37 +1508,10 @@ body::before {
             <!-- Location -->
             <div class="inc-section-label">Location</div>
             <div class="form-field">
-              <label class="form-label">Asset / plant node <span style="color:var(--md-muted);font-size:.7rem;">(optional — search register)</span></label>
-              <input class="form-input" id="incLocationAssetSearch" type="search"
-                     placeholder="Type asset name or ID…" autocomplete="off" spellcheck="false"
-                     oninput="searchAssetFor('incLocationAssetSearch','incLocationAssetResults','incLocationAssetId','incLocationAssetChosen')"/>
-              <div id="incLocationAssetResults"
-                   style="display:none;background:var(--md-panel);border:1px solid var(--md-border);
-                          border-radius:var(--md-radius);margin-top:4px;max-height:160px;overflow-y:auto;"></div>
-              <input type="hidden" id="incLocationAssetId"/>
-              <!-- Chosen asset expand card -->
-              <div id="incLocationAssetChosen" style="display:none;margin-top:6px;">
-                <div style="background:var(--md-surface);border:1px solid var(--md-gold-dk);
-                            border-radius:var(--md-radius);padding:8px 12px;">
-                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-                    <div>
-                      <div id="incLocationAssetChosenName"
-                           style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);"></div>
-                      <div id="incLocationAssetChosenMeta"
-                           style="font-size:.7rem;color:var(--md-muted);margin-top:2px;"></div>
-                    </div>
-                    <button type="button" onclick="clearIncLocationAsset()"
-                            style="background:none;border:none;color:var(--md-muted);
-                                   font-size:.85rem;cursor:pointer;padding:2px 6px;flex-shrink:0;"
-                            title="Clear selection">✕</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="form-field">
-              <label class="form-label">Specific spot within location <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <label class="form-label">Area / location description</label>
               <input class="form-input" id="incLocationFreetext" type="text"
-                     placeholder="e.g. inlet valve, north walkway, Level 3 grating"/></div>
+                     placeholder="e.g. Pump Bay A, Conveyor Level 3"/>
+            </div>
 
             <!-- Affected person -->
             <div class="inc-section-label">Affected Person</div>
@@ -1532,13 +1656,10 @@ body::before {
 
               <!-- Section 24 reporting block — hidden for near_miss / medical_treatment -->
               <div id="incDetailS24Block">
-                <div class="inc-section-divider">Section 24 Reporting <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);letter-spacing:.04em;font-weight:400;">GAR 8(1)</span></div>
-                <div style="font-size:.68rem;color:var(--md-muted);margin-bottom:8px;padding:0 2px;">
-                  WCL report due within 7 days of the <em>incident</em> date — not the date it was reported.
-                </div>
+                <div class="inc-section-divider">Section 24 Reporting</div>
                 <div class="inc-field-row">
                   <div class="inc-field">
-                    <div class="inc-field-label">WCL report due</div>
+                    <div class="inc-field-label">Formal report due</div>
                     <div class="inc-field-value" id="incDetailReportDue">—</div>
                   </div>
                   <div class="inc-field">
@@ -1550,7 +1671,7 @@ body::before {
                 <div id="incDetailNotifyBlock">
                   <div class="inc-field-row">
                     <div class="inc-field">
-                      <div class="inc-field-label">Immediate notification <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);">GAR 8(1)(b)</span></div>
+                      <div class="inc-field-label">Immediate notification</div>
                       <div class="inc-field-value" id="incDetailNotifyStatus">—</div>
                     </div>
                   </div>
@@ -3354,77 +3475,9 @@ function selectEmpFor(hiddenId, chosenId, inputId, resultsId, empId, empName) {
   $(hiddenId).value          = empId;
   $(inputId).value           = empName;
   $(resultsId).style.display = 'none';
-
-  // Build expand card — pull full record from cache for role/dept detail
-  const emp    = allEmployees.find(e => e.id === empId) || {};
-  const chosen = $(chosenId);
-  const role   = emp.role   ? `<span style="text-transform:capitalize;">${escHtml(emp.role.replace(/_/g,' '))}</span>` : '';
-  const dept   = emp.department ? ` · ${escHtml(emp.department)}` : '';
-  const phone  = emp.phone  ? `<div style="margin-top:3px;font-size:.68rem;color:var(--md-muted);">📞 ${escHtml(emp.phone)}</div>` : '';
-  chosen.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);">${escHtml(empName)}</div>
-    <div style="font-size:.7rem;color:var(--md-muted);margin-top:2px;">${role}${dept}</div>
-    ${phone}`;
-  chosen.style.display = 'block';
-}
-
-// ── Asset location search helper ──────────────────────────────────────────────
-// Used in the raise-incident form to link an incident to a registered asset node.
-// Searches /api/assets with ?q= (label/suffix text search).
-
-let _assetSearchDebounce = null;
-let _incLocationAssets   = [];   // small cache for the current search session
-
-function searchAssetFor(inputId, resultsId, hiddenId, chosenId) {
-  clearTimeout(_assetSearchDebounce);
-  const q   = $(inputId).value.trim();
-  const box = $(resultsId);
-  if (q.length < 2) { box.style.display = 'none'; return; }
-  _assetSearchDebounce = setTimeout(async () => {
-    try {
-      const data    = await apiFetch(`/assets?q=${encodeURIComponent(q)}&limit=8`);
-      const assets  = (data.assets || data.children || []).slice(0, 8);
-      _incLocationAssets = assets;
-      if (!assets.length) { box.style.display = 'none'; return; }
-      box.innerHTML = assets.map(a => `
-        <div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--md-border);"
-             onmousedown="selectAssetFor('${escHtml(hiddenId)}','${escHtml(chosenId)}','${escHtml(inputId)}','${escHtml(resultsId)}','${escHtml(a.id)}')">
-          <div style="font-size:.82rem;">${escHtml(a.label || a.suffix)}</div>
-          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);">
-            ${escHtml(a.id)}${a.breadcrumb ? ' · ' + escHtml(a.breadcrumb) : a.plant_area ? ' · ' + escHtml(a.plant_area) : ''}
-          </div>
-        </div>`).join('');
-      box.style.display = 'block';
-    } catch (_) {}
-  }, 220);
-}
-
-function selectAssetFor(hiddenId, chosenId, inputId, resultsId, assetId) {
-  const a      = _incLocationAssets.find(x => x.id === assetId) || { id: assetId };
-  $(hiddenId).value          = assetId;
-  $(inputId).value           = a.label || a.suffix || assetId;
-  $(resultsId).style.display = 'none';
-
-  // Render expand card
-  const chosenWrap = $(chosenId);
-  const nameEl     = $('incLocationAssetChosenName');
-  const metaEl     = $('incLocationAssetChosenMeta');
-  if (nameEl) nameEl.textContent = `${a.label || a.suffix || assetId}  ·  ${assetId}`;
-  const meta = [
-    a.node_type   ? a.node_type.replace(/_/g,' ')   : null,
-    a.criticality ? `${a.criticality} criticality`  : null,
-    a.plant_area  ? a.plant_area                     : null,
-    a.breadcrumb  ? a.breadcrumb                     : null,
-  ].filter(Boolean).join(' · ');
-  if (metaEl) metaEl.textContent = meta || '';
-  if (chosenWrap) chosenWrap.style.display = 'block';
-}
-
-function clearIncLocationAsset() {
-  $('incLocationAssetId').value         = '';
-  $('incLocationAssetSearch').value     = '';
-  $('incLocationAssetChosen').style.display = 'none';
-  $('incLocationAssetResults').style.display = 'none';
+  const chosen               = $(chosenId);
+  chosen.textContent         = `${empName} · ${empId}`;
+  chosen.style.display       = 'block';
 }
 
 // ── List ─────────────────────────────────────────────────────────────────────
@@ -3542,7 +3595,6 @@ function openRaiseIncidentSheet() {
   $('incMachinery').value        = '';
   $('incSaveBtn').disabled       = false;
   $('incSaveBtn').textContent    = 'Raise Incident';
-  clearIncLocationAsset();
 
   $('raiseIncidentModal').classList.add('open');
 }
@@ -3554,10 +3606,10 @@ function closeRaiseIncidentSheet() {
 function onIncClassChange() {
   const cls   = $('incClassification').value;
   const hints = {
-    section_24_serious: '⚠ Requires immediate telephone/fax notification to Provincial Director (GAR 8(1)(b)), plus WCL form within 7 days of the incident date (GAR 8(1)(a)).',
-    section_24_other:   'WCL written report required within 7 days of the incident date — not the date reported (GAR 8(1)(a)).',
-    medical_treatment:  'Internal Annexure 1 record required (GAR 9(1)). No external report to Provincial Director.',
-    near_miss:          'Internal record only. No external reporting obligation.',
+    section_24_serious: '⚠ Requires immediate telephone notification to Provincial Director, then formal report within 7 days.',
+    section_24_other:   'Formal written report required within 7 days of incident.',
+    medical_treatment:  'Internal recording required. No external report needed.',
+    near_miss:          'Internal recording only.',
   };
   $('incClassHint').textContent = hints[cls] || '';
 }
@@ -3586,10 +3638,9 @@ async function saveIncident() {
         description,
         affected_person_name: personName,
         affected_person_type: personType,
-        location_asset_id:    $('incLocationAssetId').value.trim()   || null,
-        location_freetext:    $('incLocationFreetext').value.trim()   || null,
-        body_part:            $('incBodyPart').value.trim()           || null,
-        injury_effect:        $('incInjuryEffect').value              || null,
+        location_freetext:    $('incLocationFreetext').value.trim() || null,
+        body_part:            $('incBodyPart').value.trim()          || null,
+        injury_effect:        $('incInjuryEffect').value             || null,
         machinery_involved:   $('incMachinery').value.trim()         || null,
       }),
     });
@@ -3676,11 +3727,7 @@ function renderIncidentDetail(data) {
   $('incDetailAt').textContent          = fmtDate(inc.incident_at);
   $('incDetailReportedAt').textContent  = fmtDate(inc.reported_at);
   $('incDetailReportedBy').textContent  = inc.reported_by_name || inc.reported_by || '—';
-  const locationParts = [
-    inc.location_asset_label || (inc.location_asset_id ? inc.location_asset_id : null),
-    inc.location_freetext || null,
-  ].filter(Boolean);
-  $('incDetailLocation').textContent = locationParts.length ? locationParts.join(' · ') : '—';
+  $('incDetailLocation').textContent    = inc.location_freetext || '—';
   $('incDetailPersonName').textContent  = inc.affected_person_name;
   $('incDetailPersonType').textContent  = inc.affected_person_type === 'contractor' ? 'Contractor' : 'Employee';
 
@@ -3803,7 +3850,7 @@ function renderInvestigationTab(data) {
         </div>
         <div class="inc-field-row">
           <div class="inc-field">
-            <div class="inc-field-label">Start by <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);letter-spacing:.04em;">GAR 9(2)</span></div>
+            <div class="inc-field-label">Due</div>
             <div class="inc-field-value">${due ? due.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) : '—'}${overdue ? ' <span style="color:var(--md-danger)">⚠ Overdue</span>' : ''}</div>
           </div>
           <div class="inc-field">
@@ -3811,10 +3858,6 @@ function renderInvestigationTab(data) {
             <div class="inc-field-value">${inv.completed_at ? fmtDate(inv.completed_at) : '<span style="color:var(--md-muted)">In progress</span>'}</div>
           </div>
         </div>
-        ${!inv.completed_at ? `
-        <div style="font-size:.68rem;color:var(--md-muted);margin-top:2px;padding:0 2px;">
-          Investigation must be <em>started</em> within 7 days of the incident date. Finalise as soon as reasonably practicable.
-        </div>` : ''}
         ${inv.root_cause ? `
           <div class="inc-section-divider" style="margin-top:10px;">Root Cause</div>
           <div class="inc-narrative-box">${escHtml(inv.root_cause)}</div>` : ''}
@@ -5497,6 +5540,47 @@ function selectPickerNode(id, label) {
   validateCopyForm();
 }
 
+// ─── Colour mode ─────────────────────────────────────────────────────────────
+
+const THEME_COLOURS = {
+  'normal':        '#110e09',
+  'daylight':      '#faf8f2',
+  'high-contrast': '#0a0a0a',
+};
+
+function setTheme(mode) {
+  document.documentElement.setAttribute('data-theme', mode);
+  localStorage.setItem('operum_theme', mode);
+  // Update browser chrome colour on Android PWA
+  const meta = document.getElementById('themeColorMeta');
+  if (meta) meta.setAttribute('content', THEME_COLOURS[mode] || '#110e09');
+  _renderThemeTiles(mode);
+  closeThemeSheet();
+}
+
+function _renderThemeTiles(active) {
+  ['normal','daylight','high-contrast'].forEach(m => {
+    const el = document.getElementById('themeTile-' + m);
+    if (el) el.classList.toggle('active', m === active);
+  });
+}
+
+function openThemeSheet() {
+  const current = document.documentElement.getAttribute('data-theme') || 'normal';
+  _renderThemeTiles(current);
+  $('themeSheet').classList.add('open');
+}
+
+function closeThemeSheet() {
+  $('themeSheet').classList.remove('open');
+}
+
+// Render active tile on initial page load
+(function(){
+  const t = localStorage.getItem('operum_theme') || 'normal';
+  _renderThemeTiles(t);
+})();
+
 // ─── Toast ────────────────────────────────────────────────────────────────────
 
 let toastTimer;
@@ -5508,6 +5592,37 @@ function showToast(msg, type = 'success') {
   toastTimer = setTimeout(() => { t.className = ''; }, 3000);
 }
 </script>
+
+<!-- ── Theme selector sheet ────────────────────────────────────────────────── -->
+<div id="themeSheet">
+  <div id="themeSheet-backdrop" onclick="closeThemeSheet()"></div>
+  <div id="themeSheet-panel">
+    <div class="theme-sheet-title">✦ Colour Mode</div>
+    <div class="theme-tiles">
+      <div class="theme-tile preview-normal" id="themeTile-normal" onclick="setTheme('normal')">
+        <div class="theme-tile-preview">
+          <div class="theme-tile-preview-top"></div>
+          <div class="theme-tile-preview-bar"></div>
+        </div>
+        <div class="theme-tile-label">Normal</div>
+      </div>
+      <div class="theme-tile preview-daylight" id="themeTile-daylight" onclick="setTheme('daylight')">
+        <div class="theme-tile-preview">
+          <div class="theme-tile-preview-top"></div>
+          <div class="theme-tile-preview-bar"></div>
+        </div>
+        <div class="theme-tile-label">Daylight</div>
+      </div>
+      <div class="theme-tile preview-hicontrast" id="themeTile-high-contrast" onclick="setTheme('high-contrast')">
+        <div class="theme-tile-preview">
+          <div class="theme-tile-preview-top"></div>
+          <div class="theme-tile-preview-bar"></div>
+        </div>
+        <div class="theme-tile-label">Hi-Contrast</div>
+      </div>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
