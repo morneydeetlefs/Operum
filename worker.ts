@@ -1912,10 +1912,12 @@ export default {
 
       const now = new Date().toISOString();
 
-      // formal_report_due_at is set for Section 24 incidents only — 7 days from reported_at
+      // formal_report_due_at is set for Section 24 incidents only.
+      // GAR 8(1)(a): notice to provincial director within 7 days of THE INCIDENT,
+      // not 7 days from when it was reported. Clock starts at incident_at.
       const isSection24 = b.classification === 'section_24_serious' || b.classification === 'section_24_other';
       const formalReportDueAt = isSection24
-        ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        ? new Date(new Date(b.incident_at).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
       await db.prepare(`
@@ -2130,7 +2132,8 @@ export default {
     }
 
     // ── POST /api/incidents/:id/investigate ───────────────────────────────────
-    // Assign an investigator. Sets investigation_due_at = incident_at + 3 days.
+    // Assign an investigator. Sets investigation_due_at = incident_at + 7 days.
+    // GAR 9(2): investigation must be started within 7 days of the incident date.
     // Status → under_investigation.
     // Body: { investigator_id }
     if (incidentSubMatch && incidentSubMatch[2] === 'investigate' && method === 'POST') {
@@ -2150,9 +2153,9 @@ export default {
         .bind(b.investigator_id.trim()).first();
       if (!investigator) return err('Investigator not found or inactive', 404, origin);
 
-      // investigation_due_at = incident_at + 3 calendar days
+      // investigation_due_at = incident_at + 7 calendar days (GAR 9(2))
       const dueDt = new Date(incident.incident_at);
-      dueDt.setDate(dueDt.getDate() + 3);
+      dueDt.setDate(dueDt.getDate() + 7);
       const investigationDueAt = dueDt.toISOString();
       const now = new Date().toISOString();
 

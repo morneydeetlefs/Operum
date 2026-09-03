@@ -1357,10 +1357,37 @@ body::before {
             <!-- Location -->
             <div class="inc-section-label">Location</div>
             <div class="form-field">
-              <label class="form-label">Area / location description</label>
-              <input class="form-input" id="incLocationFreetext" type="text"
-                     placeholder="e.g. Pump Bay A, Conveyor Level 3"/>
+              <label class="form-label">Asset / plant node <span style="color:var(--md-muted);font-size:.7rem;">(optional — search register)</span></label>
+              <input class="form-input" id="incLocationAssetSearch" type="search"
+                     placeholder="Type asset name or ID…" autocomplete="off" spellcheck="false"
+                     oninput="searchAssetFor('incLocationAssetSearch','incLocationAssetResults','incLocationAssetId','incLocationAssetChosen')"/>
+              <div id="incLocationAssetResults"
+                   style="display:none;background:var(--md-panel);border:1px solid var(--md-border);
+                          border-radius:var(--md-radius);margin-top:4px;max-height:160px;overflow-y:auto;"></div>
+              <input type="hidden" id="incLocationAssetId"/>
+              <!-- Chosen asset expand card -->
+              <div id="incLocationAssetChosen" style="display:none;margin-top:6px;">
+                <div style="background:var(--md-surface);border:1px solid var(--md-gold-dk);
+                            border-radius:var(--md-radius);padding:8px 12px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                    <div>
+                      <div id="incLocationAssetChosenName"
+                           style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);"></div>
+                      <div id="incLocationAssetChosenMeta"
+                           style="font-size:.7rem;color:var(--md-muted);margin-top:2px;"></div>
+                    </div>
+                    <button type="button" onclick="clearIncLocationAsset()"
+                            style="background:none;border:none;color:var(--md-muted);
+                                   font-size:.85rem;cursor:pointer;padding:2px 6px;flex-shrink:0;"
+                            title="Clear selection">✕</button>
+                  </div>
+                </div>
+              </div>
             </div>
+            <div class="form-field">
+              <label class="form-label">Specific spot within location <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+              <input class="form-input" id="incLocationFreetext" type="text"
+                     placeholder="e.g. inlet valve, north walkway, Level 3 grating"/></div>
 
             <!-- Affected person -->
             <div class="inc-section-label">Affected Person</div>
@@ -1505,10 +1532,13 @@ body::before {
 
               <!-- Section 24 reporting block — hidden for near_miss / medical_treatment -->
               <div id="incDetailS24Block">
-                <div class="inc-section-divider">Section 24 Reporting</div>
+                <div class="inc-section-divider">Section 24 Reporting <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);letter-spacing:.04em;font-weight:400;">GAR 8(1)</span></div>
+                <div style="font-size:.68rem;color:var(--md-muted);margin-bottom:8px;padding:0 2px;">
+                  WCL report due within 7 days of the <em>incident</em> date — not the date it was reported.
+                </div>
                 <div class="inc-field-row">
                   <div class="inc-field">
-                    <div class="inc-field-label">Formal report due</div>
+                    <div class="inc-field-label">WCL report due</div>
                     <div class="inc-field-value" id="incDetailReportDue">—</div>
                   </div>
                   <div class="inc-field">
@@ -1520,7 +1550,7 @@ body::before {
                 <div id="incDetailNotifyBlock">
                   <div class="inc-field-row">
                     <div class="inc-field">
-                      <div class="inc-field-label">Immediate notification</div>
+                      <div class="inc-field-label">Immediate notification <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);">GAR 8(1)(b)</span></div>
                       <div class="inc-field-value" id="incDetailNotifyStatus">—</div>
                     </div>
                   </div>
@@ -3324,9 +3354,77 @@ function selectEmpFor(hiddenId, chosenId, inputId, resultsId, empId, empName) {
   $(hiddenId).value          = empId;
   $(inputId).value           = empName;
   $(resultsId).style.display = 'none';
-  const chosen               = $(chosenId);
-  chosen.textContent         = `${empName} · ${empId}`;
-  chosen.style.display       = 'block';
+
+  // Build expand card — pull full record from cache for role/dept detail
+  const emp    = allEmployees.find(e => e.id === empId) || {};
+  const chosen = $(chosenId);
+  const role   = emp.role   ? `<span style="text-transform:capitalize;">${escHtml(emp.role.replace(/_/g,' '))}</span>` : '';
+  const dept   = emp.department ? ` · ${escHtml(emp.department)}` : '';
+  const phone  = emp.phone  ? `<div style="margin-top:3px;font-size:.68rem;color:var(--md-muted);">📞 ${escHtml(emp.phone)}</div>` : '';
+  chosen.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-gold);">${escHtml(empName)}</div>
+    <div style="font-size:.7rem;color:var(--md-muted);margin-top:2px;">${role}${dept}</div>
+    ${phone}`;
+  chosen.style.display = 'block';
+}
+
+// ── Asset location search helper ──────────────────────────────────────────────
+// Used in the raise-incident form to link an incident to a registered asset node.
+// Searches /api/assets with ?q= (label/suffix text search).
+
+let _assetSearchDebounce = null;
+let _incLocationAssets   = [];   // small cache for the current search session
+
+function searchAssetFor(inputId, resultsId, hiddenId, chosenId) {
+  clearTimeout(_assetSearchDebounce);
+  const q   = $(inputId).value.trim();
+  const box = $(resultsId);
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  _assetSearchDebounce = setTimeout(async () => {
+    try {
+      const data    = await apiFetch(`/assets?q=${encodeURIComponent(q)}&limit=8`);
+      const assets  = (data.assets || data.children || []).slice(0, 8);
+      _incLocationAssets = assets;
+      if (!assets.length) { box.style.display = 'none'; return; }
+      box.innerHTML = assets.map(a => `
+        <div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--md-border);"
+             onmousedown="selectAssetFor('${escHtml(hiddenId)}','${escHtml(chosenId)}','${escHtml(inputId)}','${escHtml(resultsId)}','${escHtml(a.id)}')">
+          <div style="font-size:.82rem;">${escHtml(a.label || a.suffix)}</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);">
+            ${escHtml(a.id)}${a.breadcrumb ? ' · ' + escHtml(a.breadcrumb) : a.plant_area ? ' · ' + escHtml(a.plant_area) : ''}
+          </div>
+        </div>`).join('');
+      box.style.display = 'block';
+    } catch (_) {}
+  }, 220);
+}
+
+function selectAssetFor(hiddenId, chosenId, inputId, resultsId, assetId) {
+  const a      = _incLocationAssets.find(x => x.id === assetId) || { id: assetId };
+  $(hiddenId).value          = assetId;
+  $(inputId).value           = a.label || a.suffix || assetId;
+  $(resultsId).style.display = 'none';
+
+  // Render expand card
+  const chosenWrap = $(chosenId);
+  const nameEl     = $('incLocationAssetChosenName');
+  const metaEl     = $('incLocationAssetChosenMeta');
+  if (nameEl) nameEl.textContent = `${a.label || a.suffix || assetId}  ·  ${assetId}`;
+  const meta = [
+    a.node_type   ? a.node_type.replace(/_/g,' ')   : null,
+    a.criticality ? `${a.criticality} criticality`  : null,
+    a.plant_area  ? a.plant_area                     : null,
+    a.breadcrumb  ? a.breadcrumb                     : null,
+  ].filter(Boolean).join(' · ');
+  if (metaEl) metaEl.textContent = meta || '';
+  if (chosenWrap) chosenWrap.style.display = 'block';
+}
+
+function clearIncLocationAsset() {
+  $('incLocationAssetId').value         = '';
+  $('incLocationAssetSearch').value     = '';
+  $('incLocationAssetChosen').style.display = 'none';
+  $('incLocationAssetResults').style.display = 'none';
 }
 
 // ── List ─────────────────────────────────────────────────────────────────────
@@ -3444,6 +3542,7 @@ function openRaiseIncidentSheet() {
   $('incMachinery').value        = '';
   $('incSaveBtn').disabled       = false;
   $('incSaveBtn').textContent    = 'Raise Incident';
+  clearIncLocationAsset();
 
   $('raiseIncidentModal').classList.add('open');
 }
@@ -3455,10 +3554,10 @@ function closeRaiseIncidentSheet() {
 function onIncClassChange() {
   const cls   = $('incClassification').value;
   const hints = {
-    section_24_serious: '⚠ Requires immediate telephone notification to Provincial Director, then formal report within 7 days.',
-    section_24_other:   'Formal written report required within 7 days of incident.',
-    medical_treatment:  'Internal recording required. No external report needed.',
-    near_miss:          'Internal recording only.',
+    section_24_serious: '⚠ Requires immediate telephone/fax notification to Provincial Director (GAR 8(1)(b)), plus WCL form within 7 days of the incident date (GAR 8(1)(a)).',
+    section_24_other:   'WCL written report required within 7 days of the incident date — not the date reported (GAR 8(1)(a)).',
+    medical_treatment:  'Internal Annexure 1 record required (GAR 9(1)). No external report to Provincial Director.',
+    near_miss:          'Internal record only. No external reporting obligation.',
   };
   $('incClassHint').textContent = hints[cls] || '';
 }
@@ -3487,9 +3586,10 @@ async function saveIncident() {
         description,
         affected_person_name: personName,
         affected_person_type: personType,
-        location_freetext:    $('incLocationFreetext').value.trim() || null,
-        body_part:            $('incBodyPart').value.trim()          || null,
-        injury_effect:        $('incInjuryEffect').value             || null,
+        location_asset_id:    $('incLocationAssetId').value.trim()   || null,
+        location_freetext:    $('incLocationFreetext').value.trim()   || null,
+        body_part:            $('incBodyPart').value.trim()           || null,
+        injury_effect:        $('incInjuryEffect').value              || null,
         machinery_involved:   $('incMachinery').value.trim()         || null,
       }),
     });
@@ -3576,7 +3676,11 @@ function renderIncidentDetail(data) {
   $('incDetailAt').textContent          = fmtDate(inc.incident_at);
   $('incDetailReportedAt').textContent  = fmtDate(inc.reported_at);
   $('incDetailReportedBy').textContent  = inc.reported_by_name || inc.reported_by || '—';
-  $('incDetailLocation').textContent    = inc.location_freetext || '—';
+  const locationParts = [
+    inc.location_asset_label || (inc.location_asset_id ? inc.location_asset_id : null),
+    inc.location_freetext || null,
+  ].filter(Boolean);
+  $('incDetailLocation').textContent = locationParts.length ? locationParts.join(' · ') : '—';
   $('incDetailPersonName').textContent  = inc.affected_person_name;
   $('incDetailPersonType').textContent  = inc.affected_person_type === 'contractor' ? 'Contractor' : 'Employee';
 
@@ -3699,7 +3803,7 @@ function renderInvestigationTab(data) {
         </div>
         <div class="inc-field-row">
           <div class="inc-field">
-            <div class="inc-field-label">Due</div>
+            <div class="inc-field-label">Start by <span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);letter-spacing:.04em;">GAR 9(2)</span></div>
             <div class="inc-field-value">${due ? due.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}) : '—'}${overdue ? ' <span style="color:var(--md-danger)">⚠ Overdue</span>' : ''}</div>
           </div>
           <div class="inc-field">
@@ -3707,6 +3811,10 @@ function renderInvestigationTab(data) {
             <div class="inc-field-value">${inv.completed_at ? fmtDate(inv.completed_at) : '<span style="color:var(--md-muted)">In progress</span>'}</div>
           </div>
         </div>
+        ${!inv.completed_at ? `
+        <div style="font-size:.68rem;color:var(--md-muted);margin-top:2px;padding:0 2px;">
+          Investigation must be <em>started</em> within 7 days of the incident date. Finalise as soon as reasonably practicable.
+        </div>` : ''}
         ${inv.root_cause ? `
           <div class="inc-section-divider" style="margin-top:10px;">Root Cause</div>
           <div class="inc-narrative-box">${escHtml(inv.root_cause)}</div>` : ''}
