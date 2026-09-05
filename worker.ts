@@ -2597,8 +2597,10 @@ export default {
         }
       }
 
-      const isSdsUpdate = (b.sds_url && b.sds_url !== existing.sds_url)
-                       || (b.sds_version && b.sds_version !== existing.sds_version);
+      const isSdsUpdate   = (b.sds_url && b.sds_url !== existing.sds_url)
+                         || (b.sds_version && b.sds_version !== existing.sds_version);
+      const isArchive     = b.status === 'archived' && existing.status !== 'archived';
+      const isUnarchive   = b.status === 'active'   && existing.status === 'archived';
 
       // Build SET clause from provided fields
       const allowed = [
@@ -2633,7 +2635,10 @@ export default {
 
       await db.prepare(`UPDATE chemicals SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
 
-      const action = isSdsUpdate ? 'sds_update' : 'update';
+      const action = isArchive   ? 'archive'
+                   : isUnarchive ? 'unarchive'
+                   : isSdsUpdate ? 'sds_update'
+                   : 'update';
       await log(db, actor.sub, action, `chemical:${chemId}`, { fields: sets }, ip);
 
       const chemical = await db.prepare('SELECT * FROM chemicals WHERE id = ?').bind(chemId).first();

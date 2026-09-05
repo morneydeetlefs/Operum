@@ -1100,6 +1100,28 @@ body::before {
 /* New Chemical sheet — sits above chemical detail (z-index 70) */
 #newChemModal { z-index: 70; }
 
+/* ── Chemicals edit sheet + incompatibles picker ─────────────────────────── */
+#editChemModal { z-index: 70; }
+#incompatPickerModal { z-index: 80; }
+.incompat-pick-list { max-height: 320px; overflow-y: auto; }
+.incompat-pick-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--md-border);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.incompat-pick-row:last-child { border-bottom: none; }
+.incompat-pick-row:hover { opacity: .8; }
+.incompat-pick-check {
+  width: 18px; height: 18px; border-radius: 3px; flex-shrink: 0;
+  border: 1px solid var(--md-border-lt);
+  display: flex; align-items: center; justify-content: center;
+  font-size: .7rem; color: var(--md-gold);
+  background: var(--md-surface);
+}
+.incompat-pick-check.checked { background: var(--md-gold-dk); border-color: var(--md-gold); }
+.incompat-pick-name { font-size: .88rem; color: var(--md-cream); }
+.incompat-pick-meta { font-family: var(--font-mono); font-size: .62rem; color: var(--md-muted); }
+
 /* ── Incident detail panel ───────────────────────────────────────────────────── */
 .inc-detail-modal {
   position: fixed; inset: 0; z-index: 60;
@@ -2202,6 +2224,144 @@ body::before {
           </div>
         </div>
       </div><!-- /newChemModal -->
+
+
+      <!-- ── Edit Chemical sheet (z-index 70, above detail) ── -->
+      <div class="modal-backdrop" id="editChemModal" onclick="if(event.target===this)closeEditChemSheet()">
+        <div class="modal-sheet" style="max-height:92vh;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+            <div>
+              <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Edit Chemical</div>
+              <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);margin-top:2px;" id="editChemId"></div>
+            </div>
+            <button class="close-btn" onclick="closeEditChemSheet()">✕</button>
+          </div>
+          <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+            <div class="inc-form">
+
+              <div class="form-field">
+                <label class="form-label">Common name <span class="form-required">*</span></label>
+                <input class="form-input" id="ecCommonName" type="text"/>
+              </div>
+              <div class="form-field">
+                <label class="form-label">IUPAC / chemical name <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+                <input class="form-input" id="ecChemName" type="text"/>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="form-label">Physical state <span class="form-required">*</span></label>
+                  <select class="form-input" id="ecState">
+                    <option value="liquid">Liquid</option>
+                    <option value="solid">Solid</option>
+                    <option value="gas">Gas</option>
+                    <option value="aerosol">Aerosol</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Flash point (°C)</label>
+                  <input class="form-input" id="ecFlash" type="number" step="0.1" placeholder="e.g. −17"/>
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="form-label">UN number</label>
+                  <input class="form-input" id="ecUN" type="text" placeholder="e.g. 1090"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">CAS number</label>
+                  <input class="form-input" id="ecCAS" type="text" placeholder="e.g. 67-64-1"/>
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label class="form-label">Supplier</label>
+                <input class="form-input" id="ecSupplier" type="text"/>
+              </div>
+
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="form-label">Storage location</label>
+                  <input class="form-input" id="ecStorageLocation" type="text"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Max quantity on site</label>
+                  <div style="display:flex;gap:6px;">
+                    <input class="form-input" id="ecMaxQty" type="number" min="0" step="0.1" style="flex:1;"/>
+                    <select class="form-input" id="ecMaxQtyUnit" style="width:64px;flex-shrink:0;">
+                      <option value="L">L</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="inc-section-divider" style="margin-top:8px;">Safety Data Sheet</div>
+              <div class="form-row">
+                <div class="form-field">
+                  <label class="form-label">SDS version</label>
+                  <input class="form-input" id="ecSdsVersion" type="text" placeholder="e.g. Rev 3"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Issue date</label>
+                  <input class="form-input" id="ecSdsIssued" type="date"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Expiry date</label>
+                  <input class="form-input" id="ecSdsExpires" type="date"/>
+                </div>
+              </div>
+              <div class="form-field">
+                <label class="form-label">SDS document URL</label>
+                <input class="form-input" id="ecSdsUrl" type="url" placeholder="https://…"/>
+              </div>
+
+              <div class="inc-section-divider" style="margin-top:8px;">GHS Hazard Classes <span style="color:var(--md-muted);font-size:.7rem;font-family:var(--font-body);font-weight:400;text-transform:none;letter-spacing:0;">(one per line)</span></div>
+              <textarea class="form-input" id="ecHazards" rows="3" style="resize:vertical;font-size:.82rem;"></textarea>
+
+              <div class="inc-section-divider" style="margin-top:8px;">Required PPE <span style="color:var(--md-muted);font-size:.7rem;font-family:var(--font-body);font-weight:400;text-transform:none;letter-spacing:0;">(one per line)</span></div>
+              <textarea class="form-input" id="ecPPE" rows="3" style="resize:vertical;font-size:.82rem;"></textarea>
+
+              <div class="inc-section-divider" style="margin-top:8px;">Incompatible Chemicals</div>
+              <div style="margin-bottom:8px;">
+                <button class="btn btn-secondary" style="font-size:.78rem;padding:6px 12px;"
+                        onclick="openIncompatPicker()">+ Add / Remove Incompatibles</button>
+              </div>
+              <div class="chem-tag-list" id="ecIncompatList" style="margin-bottom:4px;"></div>
+
+            </div>
+          </div>
+          <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="flex:1;" onclick="closeEditChemSheet()">Cancel</button>
+            <button class="btn btn-gold" style="flex:2;" onclick="submitEditChem()">Save Changes</button>
+          </div>
+        </div>
+      </div><!-- /editChemModal -->
+
+      <!-- ── Incompatibles picker (z-index 80, above edit sheet) ── -->
+      <div class="modal-backdrop" id="incompatPickerModal" onclick="if(event.target===this)closeIncompatPicker()">
+        <div class="modal-sheet" style="max-height:75vh;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 10px;">
+            <div style="font-family:var(--font-brand);font-size:.9rem;color:var(--md-gold-lt);letter-spacing:.06em;">Incompatible Chemicals</div>
+            <button class="close-btn" onclick="closeIncompatPicker()">✕</button>
+          </div>
+          <div style="padding:0 20px 10px;font-size:.78rem;color:var(--md-muted);">
+            Select chemicals that must not be stored together with this substance.
+          </div>
+          <div style="padding:0 20px 10px;">
+            <input class="chem-search" id="incompatSearch" type="search"
+                   placeholder="Search chemicals…"
+                   oninput="filterIncompatList(this.value)"
+                   style="width:100%;"/>
+          </div>
+          <div class="incompat-pick-list" id="incompatPickList" style="padding:0 20px 8px;"></div>
+          <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+            <button class="btn btn-secondary" style="flex:1;" onclick="closeIncompatPicker()">Cancel</button>
+            <button class="btn btn-gold" style="flex:2;" onclick="confirmIncompatSelection()">Confirm Selection</button>
+          </div>
+        </div>
+      </div><!-- /incompatPickerModal -->
 
     </div><!-- /modSafety -->
 
@@ -5839,13 +5999,15 @@ function renderChemDetail(data) {
   }
 
   // ── Action bar ──
+  // action bar — Edit and Archive gated to CHEM_WRITE roles
+  const canWrite = actor && ['admin','safety_manager'].includes(actor.role);
   $('chemActionBar').innerHTML = `
-    <button class="btn btn-secondary" style="flex:1;font-size:.78rem;"
-            onclick="openChemTab('ctLocations', document.querySelectorAll('.chem-detail-tab')[2])">
-      View Locations
-    </button>
     ${c.sds_url ? `<a class="btn btn-secondary" style="flex:1;font-size:.78rem;text-align:center;text-decoration:none;"
         href="${escHtml(c.sds_url)}" target="_blank" rel="noopener">Open SDS ↗</a>` : ''}
+    ${canWrite ? `<button class="btn btn-secondary" style="flex:1;font-size:.78rem;"
+            onclick="openEditChemSheet()">Edit</button>` : ''}
+    ${canWrite ? `<button class="btn btn-secondary" style="flex:1;font-size:.78rem;color:var(--md-danger);border-color:rgba(201,76,76,.3);"
+            onclick="archiveChem()">Archive</button>` : ''}
   `;
 }
 
@@ -5927,6 +6089,202 @@ async function submitNewChem() {
 function parseJsonArr(raw) {
   if (Array.isArray(raw)) return raw;
   try { return JSON.parse(raw) || []; } catch { return []; }
+}
+
+
+// ── Edit Chemical sheet ───────────────────────────────────────────────────────
+
+let editIncompatIds = [];   // mutable array during edit session
+let incompatPickTemp = [];  // temporary selection inside the picker
+
+function openEditChemSheet() {
+  const c = currentChem;
+  if (!c) return;
+
+  $('editChemId').textContent    = c.id;
+  $('ecCommonName').value        = c.common_name   || '';
+  $('ecChemName').value          = c.chemical_name || '';
+  $('ecState').value             = c.physical_state || 'liquid';
+  $('ecFlash').value             = c.flash_point_c != null ? c.flash_point_c : '';
+  $('ecUN').value                = c.un_number     || '';
+  $('ecCAS').value               = c.cas_number    || '';
+  $('ecSupplier').value          = c.supplier      || '';
+  $('ecStorageLocation').value   = c.location_stored || '';
+  $('ecMaxQty').value            = c.max_quantity_l != null ? c.max_quantity_l : '';
+  $('ecMaxQtyUnit').value        = c.quantity_unit  || 'L';
+  $('ecSdsVersion').value        = c.sds_version   || '';
+  $('ecSdsUrl').value            = c.sds_url        || '';
+  $('ecSdsIssued').value         = c.sds_issued_at  ? c.sds_issued_at.slice(0,10)  : '';
+  $('ecSdsExpires').value        = c.sds_expires_at ? c.sds_expires_at.slice(0,10) : '';
+  $('ecHazards').value           = parseJsonArr(c.hazard_classes).join('\n');
+  $('ecPPE').value               = parseJsonArr(c.ppe_required).join('\n');
+
+  editIncompatIds = [...parseJsonArr(c.incompatible_with)];
+  renderEditIncompatTags();
+
+  $('editChemModal').classList.add('open');
+}
+
+function closeEditChemSheet() {
+  $('editChemModal').classList.remove('open');
+}
+
+function renderEditIncompatTags() {
+  const container = $('ecIncompatList');
+  if (!editIncompatIds.length) {
+    container.innerHTML = '<span style="color:var(--md-muted);font-size:.82rem;">None selected</span>';
+    return;
+  }
+  container.innerHTML = editIncompatIds.map(id => {
+    const chem = chemAll.find(c => c.id === id);
+    const label = chem ? `${chem.common_name} (${id})` : id;
+    return `<span class="chem-tag incompat" style="cursor:pointer;" title="Click to remove"
+                  onclick="removeEditIncompat('${escHtml(id)}')">✕ ${escHtml(label)}</span>`;
+  }).join('');
+}
+
+function removeEditIncompat(id) {
+  editIncompatIds = editIncompatIds.filter(x => x !== id);
+  renderEditIncompatTags();
+}
+
+async function submitEditChem() {
+  const c = currentChem;
+  if (!c) return;
+
+  const commonName = $('ecCommonName').value.trim();
+  const state      = $('ecState').value;
+  if (!commonName) { showToast('Common name is required', 'error'); return; }
+  if (!state)      { showToast('Physical state is required', 'error'); return; }
+
+  const parseLines = id => ($s(`#${id}`)?.value || '')
+    .split('\n').map(s => s.trim()).filter(Boolean);
+
+  const body = {
+    common_name:      commonName,
+    physical_state:   state,
+    chemical_name:    $('ecChemName').value.trim()        || null,
+    un_number:        $('ecUN').value.trim()              || null,
+    cas_number:       $('ecCAS').value.trim()             || null,
+    supplier:         $('ecSupplier').value.trim()        || null,
+    location_stored:  $('ecStorageLocation').value.trim() || null,
+    flash_point_c:    $('ecFlash').value !== '' ? parseFloat($('ecFlash').value) : null,
+    max_quantity_l:   $('ecMaxQty').value !== '' ? parseFloat($('ecMaxQty').value) : null,
+    quantity_unit:    $('ecMaxQtyUnit').value,
+    sds_version:      $('ecSdsVersion').value.trim()      || null,
+    sds_url:          $('ecSdsUrl').value.trim()          || null,
+    sds_issued_at:    $('ecSdsIssued').value              || null,
+    sds_expires_at:   $('ecSdsExpires').value             || null,
+    hazard_classes:   parseLines('ecHazards'),
+    ppe_required:     parseLines('ecPPE'),
+    incompatible_with: editIncompatIds,
+  };
+
+  try {
+    const data = await apiFetch(`/chemicals/${encodeURIComponent(c.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    closeEditChemSheet();
+    showToast('Chemical updated', 'success');
+    // Refresh detail view and list
+    currentChem = data.chemical;
+    const detail = await apiFetch(`/chemicals/${encodeURIComponent(c.id)}`);
+    renderChemDetail(detail);
+    await loadChemList();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ── Archive ───────────────────────────────────────────────────────────────────
+
+async function archiveChem() {
+  const c = currentChem;
+  if (!c) return;
+  if (!confirm(`Archive ${c.common_name} (${c.id})? It will no longer appear in the active register.`)) return;
+
+  try {
+    await apiFetch(`/chemicals/${encodeURIComponent(c.id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'archived' }),
+    });
+    closeChemDetail();
+    showToast(`${c.id} archived`, 'success');
+    await loadChemList();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+// ── Incompatibles picker ──────────────────────────────────────────────────────
+
+function openIncompatPicker() {
+  // Start temp selection from current edit state
+  incompatPickTemp = [...editIncompatIds];
+  $('incompatSearch').value = '';
+  renderIncompatPickList('');
+  $('incompatPickerModal').classList.add('open');
+}
+
+function closeIncompatPicker() {
+  $('incompatPickerModal').classList.remove('open');
+}
+
+function filterIncompatList(q) {
+  renderIncompatPickList(q.toLowerCase().trim());
+}
+
+function renderIncompatPickList(q) {
+  const container = $('incompatPickList');
+  const currentId = currentChem?.id;
+
+  // All active chemicals except the one being edited
+  const candidates = chemAll.filter(c => {
+    if (c.id === currentId) return false;
+    if (!q) return true;
+    return c.common_name.toLowerCase().includes(q)
+        || (c.un_number && c.un_number.toLowerCase().includes(q));
+  });
+
+  if (!candidates.length) {
+    container.innerHTML = '<div style="color:var(--md-muted);font-size:.85rem;padding:12px 0;">No chemicals found</div>';
+    return;
+  }
+
+  container.innerHTML = candidates.map(c => {
+    const checked = incompatPickTemp.includes(c.id);
+    return `
+    <div class="incompat-pick-row" onclick="toggleIncompatPick('${escHtml(c.id)}')">
+      <div class="incompat-pick-check ${checked ? 'checked' : ''}" id="ipck-${escHtml(c.id)}">
+        ${checked ? '✓' : ''}
+      </div>
+      <div>
+        <div class="incompat-pick-name">${escHtml(c.common_name)}</div>
+        <div class="incompat-pick-meta">${escHtml(c.id)}${c.un_number ? ' · UN ' + escHtml(c.un_number) : ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleIncompatPick(id) {
+  if (incompatPickTemp.includes(id)) {
+    incompatPickTemp = incompatPickTemp.filter(x => x !== id);
+  } else {
+    incompatPickTemp.push(id);
+  }
+  // Update just the checkbox element — no full re-render to avoid scroll reset
+  const el = $s(`#ipck-${id}`);
+  if (el) {
+    el.classList.toggle('checked', incompatPickTemp.includes(id));
+    el.textContent = incompatPickTemp.includes(id) ? '✓' : '';
+  }
+}
+
+function confirmIncompatSelection() {
+  editIncompatIds = [...incompatPickTemp];
+  renderEditIncompatTags();
+  closeIncompatPicker();
 }
 
 // ─── End Safety module ────────────────────────────────────────────────────────
