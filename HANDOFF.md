@@ -28,6 +28,7 @@ Git identity configured: `morneydeetlefs` / `morneydeetlefs@gmail.com`. Wrangler
 - `$s(selector)` = `document.querySelector`; `$(id)` = element shorthand
 - `escHtml(s)` = HTML escape helper
 - `allEmployees` = module-level cache array, shared across attendee picker and incident employee search
+- `chemAll` = module-level cache array for chemicals list; `chemFiltered` = filtered view
 - Monolith stays monolithic — `app.html` will not be split into separate files
 - Read live files from GitHub before touching anything — never work from stale context
 
@@ -58,53 +59,83 @@ SWP is the foundational safety document. Full CRUD — create, edit, steps (add/
 #### BBS Observations
 BBS is a field audit of a SWP — behaviour categories derived from SWP steps, not hardcoded. Observed person is optional freetext only (never a register lookup). List view, new observation sheet, detail view. Fully deployed.
 
-#### Incident Investigation — completed this session, fully deployed
+#### Incident Investigation — fully deployed
 Maps to OHSA Act 85 of 1993 / General Administrative Regulations Annexure 2 and Section 24.
 
-**Schema — four tables deployed:**
+**Schema — four tables:**
 ```
 incidents                  — core incident record (INC-YYYY-NNN, auto-generated server-side)
 incident_investigations    — investigator assignment + findings
 incident_committee_reviews — committee meeting record + endorsements (immutable once set)
 incident_witnesses         — witness statements (preserved for formal inquiry / subpoena)
 ```
-Six indexes applied.
 
-**Worker — twelve endpoints deployed:**
+**Worker — twelve endpoints:**
 ```
-POST  /api/incidents                          raise incident (auto-generates INC-YYYY-NNN)
-GET   /api/incidents                          list (filterable by ?status=)
-GET   /api/incidents/:id                      detail — returns { incident, investigations, reviews, witnesses }
-PATCH /api/incidents/:id                      update incident fields
-POST  /api/incidents/:id/notify               record immediate S24 telephone notification
-POST  /api/incidents/:id/formal-report        mark formal written report as sent
-POST  /api/incidents/:id/investigate          assign investigator (POST = assign, PATCH = submit findings)
-PATCH /api/incidents/:id/investigate          submit findings, root cause, corrective actions, completed_at
-POST  /api/incidents/:id/committee-review     record committee meeting
-POST  /api/incidents/:id/endorse/chairperson  immutable chairperson endorsement
-POST  /api/incidents/:id/endorse/employer     immutable employer endorsement + auto-close
-POST  /api/incidents/:id/witnesses            add witness statement
+POST  /api/incidents
+GET   /api/incidents
+GET   /api/incidents/:id
+PATCH /api/incidents/:id
+POST  /api/incidents/:id/notify
+POST  /api/incidents/:id/formal-report
+POST  /api/incidents/:id/investigate
+PATCH /api/incidents/:id/investigate
+POST  /api/incidents/:id/committee-review
+POST  /api/incidents/:id/endorse/chairperson
+POST  /api/incidents/:id/endorse/employer
+POST  /api/incidents/:id/witnesses
 ```
-
-**UI — fully built:**
-- List view: filter chips (All / Open / Investigating / Committee / Closed), classification and status pills, overdue flags (investigation 3-day, formal report 7-day), investigator name in meta row
-- Raise sheet: auto-ID (no user input), classification, datetime, description, location, affected person, body part, injury effect, machinery
-- Detail panel — full-screen slide-up, four tabs:
-  - **Overview:** incident narrative, dates, reported by, location, affected person, body part, effect, machinery, Section 24 reporting block (hidden for near-miss / medical treatment), immediate notification status
-  - **Investigation:** investigator card, assigned/due/completed dates, overdue flag, root cause, findings, corrective actions, Submit Findings button (when status is `under_investigation`)
-  - **Committee:** review card, meeting date, chairperson, endorsement pills (Chairperson ✓, Employer ○), Chairperson Endorse / Employer Endorse & Close buttons (contextual — each gated behind the previous)
-  - **Witnesses:** witness list (name, contact, statement) + inline add-witness form always visible at bottom
-- Action bar (context-sensitive, bottom of detail panel): Record Notification (S24 serious, not yet notified), Mark Report Sent (S24, not yet sent), Assign Investigator (open status)
-- Three secondary sheets: Assign Investigator (employee search), Submit Findings, Committee Review — z-index 70 to sit above the detail panel (z-index 60)
-- Employee search helper `searchEmpFor` / `selectEmpFor` — reuses `allEmployees` cache, client-side filter, one fetch on first use
 
 **Key design decisions locked:**
 - Near-miss is a first-class classification — same table, not a separate entity
 - Contractor incidents use nullable employee FK; same 3-day investigation clock applies
-- System-calculated deadlines — formal report 7 days from `reported_at`, investigation 3 days from `incident_at` — never user-entered
-- Endorsement immutability — wrong endorsements are superseded by a new committee review record, never edited
-- Section 24 block hidden entirely for `near_miss` and `medical_treatment` classifications
-- `reloadIncidentsAll()` helper resets the filter chip to All and reloads the list — called after any action that changes incident status, so the updated row stays visible regardless of active filter
+- System-calculated deadlines — formal report 7 days from `reported_at`, investigation 3 days from `incident_at`
+- Endorsement immutability — superseded by new committee review record, never edited
+- Section 24 block hidden for `near_miss` and `medical_treatment` classifications
+
+#### Chemicals Register — completed this session, fully deployed
+Safety sub-phase 2a. Both HIRA and Stores depend on this module.
+
+**Schema — two tables, three indexes (schema_chemicals.sql applied):**
+```
+chemicals        — one row per substance; CHM-YYYY-NNN server-generated ID
+                   JSON arrays: hazard_classes, ppe_required, incompatible_with
+                   SDS fields: sds_version, sds_url, sds_issued_at, sds_expires_at
+                   SDS version history via access_log (action='sds_update'), not a separate table
+asset_chemicals  — composite PK junction: asset_id + chemical_id
+                   quantity_on_hand maintained in-place by receipt endpoint
+```
+
+**Worker v1.2 — seven new endpoints:**
+```
+POST  /api/chemicals                    create (CHM-YYYY-NNN, validates incompatible_with ids)
+GET   /api/chemicals                    list (?status= &physical_state= &q= substring search)
+GET   /api/chemicals/:id                single + resolved asset locations
+PATCH /api/chemicals/:id                update; logs 'sds_update' when SDS fields change
+POST  /api/chemicals/:id/receipt        receive stock at asset node
+                                        bidirectional incompatibility check → 409 with conflict list
+                                        upserts quantity_on_hand in asset_chemicals
+GET   /api/assets/:id/chemicals         chemicals at an asset node (HIRA will use this)
+GET   /api/public/chemicals/:id/sds     UNAUTHENTICATED — 302 redirect to sds_url (QR code target)
+```
+
+**UI — fully built:**
+- List view: search bar (name / UN / CAS), state filter chips (All / Liquid / Solid / Gas / Aerosol), liquid icon colour-coded by state, state pill, SDS expiry warnings (30-day amber, expired red)
+- Detail panel — slide-up, three tabs:
+  - **Details:** physical state, flash point, UN, CAS, IUPAC name, supplier, storage location, max quantity, SDS section (version, issued, expires with EXPIRED badge, Open SDS Document link)
+  - **Hazards & PPE:** GHS hazard class tags (red), required PPE tags (green), incompatible chemicals tags (amber)
+  - **Locations:** list of asset nodes where chemical is stored with quantity on hand; empty state prompts Receipt
+- Action bar: View Locations, Open SDS (when sds_url present)
+- New Chemical sheet (z-index 70, above detail): common name, IUPAC name, physical state, flash point, UN, CAS, supplier, storage location, max quantity + unit, SDS fields, hazard classes textarea (one per line), PPE textarea (one per line)
+
+**Key design decisions locked:**
+- CHM-YYYY-NNN sequential within year, server-generated
+- JSON arrays for hazard_classes, ppe_required, incompatible_with — same pattern as asset hazards/isolation_pts
+- SDS version history via access_log only (no separate versions table) — upgrade when version browsing is needed
+- asset_chemicals junction table with composite PK — HIRA queries `GET /api/assets/:id/chemicals`
+- Receipt endpoint only (no receipts table) — Stores module will add full stock movement audit trail
+- Public SDS route before auth gate — unauthenticated 302 redirect for QR codes printed on containers
+- Incompatibility is bidirectional: conflict fires if A lists B OR if B lists A
 
 ---
 
@@ -116,21 +147,21 @@ AUTH
   POST /api/login                  real login
 
 EMPLOYEES
-  GET  /api/employees              list all (no server-side search — filter client-side)
+  GET  /api/employees              list all
   POST /api/employees              create
   GET  /api/employees/:id          single
 
 LIBRARY (SWP task library)
-  GET  /api/library/suggest        suggest tasks for asset type
-  GET  /api/library                list
-  POST /api/library                create
-  PATCH /api/library/:prefix       update
-  DELETE /api/library/:prefix      delete
+  GET  /api/library/suggest
+  GET  /api/library
+  POST /api/library
+  PATCH /api/library/:prefix
+  DELETE /api/library/:prefix
 
 ASSETS
-  GET  /api/assets                 list (hierarchical)
-  POST /api/assets                 create
-  GET/PATCH/DELETE /api/assets/:id single
+  GET  /api/assets
+  POST /api/assets
+  GET/PATCH/DELETE /api/assets/:id
   GET  /api/assets/:id/subtree-count
   POST /api/assets/:id/copy
   GET  /api/assets/:id/documents
@@ -138,35 +169,35 @@ ASSETS
   GET  /api/log
 
 TOOLBOX TALKS
-  GET  /api/talks                  list
-  POST /api/talks                  create (auto-generates TBT-YYYY-NNN)
-  GET  /api/talks/:id              detail
-  POST /api/talks/:id/attend       add attendee
-  PATCH /api/talks/:id/attend/:emp_id  update attendance / sign-off
+  GET  /api/talks
+  POST /api/talks
+  GET  /api/talks/:id
+  POST /api/talks/:id/attend
+  PATCH /api/talks/:id/attend/:emp_id
 
 SAFE WORK PROCEDURES
-  GET  /api/assets/:id/swps        list SWPs for asset
-  POST /api/assets/:id/swps        create SWP (auto-generates SWP-YYYY-NNN)
-  GET  /api/swps/:id               detail
-  PATCH /api/swps/:id              update
-  POST /api/swps/:id/steps         add step
-  PATCH /api/swps/:id/steps/:stepId  update step
-  DELETE /api/swps/:id/steps/:stepId delete step
+  GET  /api/assets/:id/swps
+  POST /api/assets/:id/swps
+  GET  /api/swps/:id
+  PATCH /api/swps/:id
+  POST /api/swps/:id/steps
+  PATCH /api/swps/:id/steps/:stepId
+  DELETE /api/swps/:id/steps/:stepId
 
 BBS OBSERVATIONS
-  GET  /api/bbs                    list
-  POST /api/bbs                    create
-  GET  /api/bbs/:id                detail
-  PATCH /api/bbs/:id               update
+  GET  /api/bbs
+  POST /api/bbs
+  GET  /api/bbs/:id
+  PATCH /api/bbs/:id
 
 CONDITION MONITORING (DiagnosticWand — shared DB/Worker)
   GET  /api/assets/measurable/trends
-  GET  /api/assets/measurable      assets with measurement points
-  GET  /api/assets/:id/trend       trend data for asset
+  GET  /api/assets/measurable
+  GET  /api/assets/:id/trend
   POST /api/assets/:id/reset-baseline
-  POST /api/diagnostics            submit reading
-  GET  /api/diagnostics/recent     recent readings
-  GET  /api/diagnostics            query readings
+  POST /api/diagnostics
+  GET  /api/diagnostics/recent
+  GET  /api/diagnostics
 
 INCIDENT INVESTIGATION
   POST  /api/incidents
@@ -181,6 +212,15 @@ INCIDENT INVESTIGATION
   POST  /api/incidents/:id/endorse/chairperson
   POST  /api/incidents/:id/endorse/employer
   POST  /api/incidents/:id/witnesses
+
+CHEMICALS REGISTER
+  POST  /api/chemicals
+  GET   /api/chemicals
+  GET   /api/chemicals/:id
+  PATCH /api/chemicals/:id
+  POST  /api/chemicals/:id/receipt
+  GET   /api/assets/:id/chemicals
+  GET   /api/public/chemicals/:id/sds    (unauthenticated)
 ```
 
 ---
@@ -200,20 +240,19 @@ INCIDENT INVESTIGATION
 
 ## Next build sequence
 
-### Immediate next
-1. **DiagnosticWand dashboard rewiring** — `dashboard.html` is deployed but broken, still calling old `/api/machines` endpoints which no longer exist. Must be rewired to current `/api/assets` endpoints. Read live `dashboard.html` and `worker.ts` before touching anything.
-
 ### Safety module — remaining
-2. **Chemicals Register** (Safety sub-phase 2a) — both HIRA and Stores depend on it. Design schema first, confirm, then endpoints, then UI.
-3. **HIRA** — situational model: task + location + time + people + chemicals. NOSA three-dimensional matrix: Likelihood × Severity × Exposure, scored across Health, Safety, Environment, range 1–125.
-4. **BBS Observations detail view** — list and new-observation form exist; detail sheet not yet built.
+1. **HIRA** — situational model: task + location + time + people + chemicals. NOSA three-dimensional matrix: Likelihood × Severity × Exposure, scored across Health, Safety, Environment, range 1–125. Chemicals Register must be confirmed stable before HIRA schema work begins.
+2. **BBS Observations detail view** — list and new-observation form exist; detail sheet not yet built.
+
+### Also on the list
+3. **DiagnosticWand dashboard rewiring** — `dashboard.html` is deployed but broken, still calling old `/api/machines` endpoints which no longer exist. Must be rewired to current `/api/assets` endpoints.
 
 ### Longer horizon (locked in concept)
 - PTW (Permit to Work) — last, highest complexity; requires safety officer input before design
-- Stores module — scoped to inventory management only, no procurement
+- Stores module — scoped to inventory management only, no procurement; will add `chemical_receipts` table
 - Groq LLM layer — SWP draft generation (schema already compatible, slots in without migration)
 - PDF export of Annexure 2
-- Versioned MSDS documents with emergency QR via unauthenticated public Worker route
+- Versioned MSDS documents with emergency QR — public route already live, QR generation UI deferred
 - Risk acceptance sign-off flow for threshold breaches (named manager, immutable, timestamped)
 - Mandated threshold enforcement with criticality multiplier (Critical 0.5×, High 0.75×, Medium 1.0×, Low 1.25×)
 
@@ -238,11 +277,11 @@ git push
 # Get a JWT for API testing — run in browser DevTools console while logged in
 sessionStorage.getItem('operum_token') || localStorage.getItem('operum_token')
 
-# Test an endpoint (Git Bash)
+# Test an endpoint (Git Bash) — note double-quotes so $TOKEN expands
 TOKEN="eyJ..."
 node -e "
-fetch('https://operum-worker.morneydeetlefs.workers.dev/api/incidents', {
-  headers: { 'Authorization': 'Bearer ' + '$TOKEN' }
+fetch('https://operum-worker.morneydeetlefs.workers.dev/api/chemicals', {
+  headers: { 'Authorization': 'Bearer $TOKEN' }
 }).then(r => r.json()).then(d => console.log(JSON.stringify(d, null, 2)))
 "
 ```
