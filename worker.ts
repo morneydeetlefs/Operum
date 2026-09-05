@@ -1,6 +1,6 @@
 /**
  * Operum — Cloudflare Worker (worker.ts)
- * v1.1 — Register + Safety (Toolbox Talks, SWP, BBS)
+ * v1.2 — Register + Safety (Toolbox Talks, SWP, BBS, Incidents, Chemicals Register)
  *
  * Endpoints
  * ─────────────────────────────────────────────────────────────────────────────
@@ -57,6 +57,15 @@
  * POST /api/diagnostics                   submit a sensor reading
  * GET  /api/diagnostics/recent            last N readings across all assets (audit trail)
  * GET  /api/diagnostics?asset_id=&limit=&offset=
+ *
+ * ── Chemicals Register ───────────────────────────────────────────────────────
+ * POST /api/chemicals                      create chemical (CHM-YYYY-NNN)
+ * GET  /api/chemicals                      list (?status= &physical_state= &q=)
+ * GET  /api/chemicals/:id                  single chemical + stored locations
+ * PATCH /api/chemicals/:id                 update chemical fields / SDS
+ * POST /api/chemicals/:id/receipt          receive stock at asset (with incompatibility check)
+ * GET  /api/assets/:id/chemicals           chemicals stored at an asset node
+ * GET  /api/public/chemicals/:id/sds       unauthenticated — redirect to sds_url (for QR codes)
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -307,6 +316,23 @@ export default {
     const auth  = req.headers.get('Authorization') ?? '';
     const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
     const actor = token ? await verifyJWT(token, env.OPERUM_JWT_SECRET) : null;
+
+    // ── GET /api/public/chemicals/:id/sds ────────────────────────────────────
+    // Unauthenticated. Returns the sds_url for a chemical so that a QR code
+    // printed on a container can link any person (no login required) to the
+    // current Safety Data Sheet.
+    const publicSdsMatch = path.match(/^\/api\/public\/chemicals\/([^\/]+)\/sds$/);
+    if (publicSdsMatch && method === 'GET') {
+      const chemId = decodeURIComponent(publicSdsMatch[1]);
+      const chem = await env.DB.prepare(
+        `SELECT id, common_name, sds_url FROM chemicals WHERE id = ? AND status = 'active'`
+      ).bind(chemId).first<{ id: string; common_name: string; sds_url: string | null }>();
+      if (!chem)      return err('Chemical not found', 404, origin);
+      if (!chem.sds_url) return err('No SDS document on record for this chemical', 404, origin);
+      // Redirect to the SDS document directly — no auth token needed.
+      return Response.redirect(chem.sds_url, 302);
+    }
+
     if (!actor) return err('Unauthorised', 401, origin);
 
     const db = env.DB;
@@ -2361,6 +2387,385 @@ export default {
       return json({ id: result.meta.last_row_id }, 201, origin);
     }
 
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // CHEMICALS REGISTER
+    // OHSA Act 85 of 1993 — Safety Data Sheets (SDS/MSDS) requirement
+    // ══════════════════════════════════════════════════════════════════════════
+    //
+    // Role constants for this section:
+    //   Read:   MANAGE_ROLES (admin, safety_manager, maintenance_planner, supervisor)
+    //   Write:  admin, safety_manager
+    //   Receipt (asset_chemicals): admin, safety_manager, supervisor
+
+    const CHEM_WRITE: Role[] = ['admin', 'safety_manager'];
+
+    // ── POST /api/chemicals ───────────────────────────────────────────────────
+    // Create a new chemical record. System generates CHM-YYYY-NNN id.
+    // Body: {
+    //   common_name, physical_state,                    -- required
+    //   un_number?, cas_number?, chemical_name?,
+    //   supplier?, flash_point_c?,
+    //   sds_version?, sds_url?, sds_issued_at?, sds_expires_at?,
+    //   location_stored?, max_quantity_l?, quantity_unit?,
+    //   hazard_classes?, ppe_required?, incompatible_with?
+    // }
+    if (method === 'POST' && path === '/api/chemicals') {
+      if (!can(actor.role, CHEM_WRITE)) return err('Forbidden', 403, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        common_name?: string;
+        physical_state?: string;
+        un_number?: string;
+        cas_number?: string;
+        chemical_name?: string;
+        supplier?: string;
+        flash_point_c?: number;
+        sds_version?: string;
+        sds_url?: string;
+        sds_issued_at?: string;
+        sds_expires_at?: string;
+        location_stored?: string;
+        max_quantity_l?: number;
+        quantity_unit?: string;
+        hazard_classes?: unknown[];
+        ppe_required?: unknown[];
+        incompatible_with?: string[];
+      };
+
+      if (!b.common_name?.trim()) return err('common_name is required', 400, origin);
+
+      const validStates = ['liquid', 'solid', 'gas', 'aerosol'];
+      if (!b.physical_state || !validStates.includes(b.physical_state))
+        return err('physical_state must be one of: ' + validStates.join(', '), 400, origin);
+
+      const validUnits = ['L', 'kg'];
+      const unit = b.quantity_unit && validUnits.includes(b.quantity_unit) ? b.quantity_unit : 'L';
+
+      // Validate incompatible_with ids exist in the chemicals table
+      const incompat: string[] = Array.isArray(b.incompatible_with) ? b.incompatible_with : [];
+      for (const cid of incompat) {
+        const exists = await db.prepare('SELECT id FROM chemicals WHERE id = ?').bind(cid).first();
+        if (!exists) return err(`Incompatible chemical not found: ${cid}`, 400, origin);
+      }
+
+      // Generate CHM-YYYY-NNN
+      const chemYear = new Date().getFullYear().toString();
+      const countRow = await db.prepare(
+        `SELECT COUNT(*) AS n FROM chemicals WHERE id LIKE ?`
+      ).bind(`CHM-${chemYear}-%`).first<{ n: number }>();
+      const chemSeq = String((countRow?.n ?? 0) + 1).padStart(3, '0');
+      const chemId  = `CHM-${chemYear}-${chemSeq}`;
+
+      const now = new Date().toISOString();
+
+      await db.prepare(`
+        INSERT INTO chemicals (
+          id, un_number, cas_number, common_name, chemical_name,
+          supplier, physical_state, flash_point_c,
+          sds_version, sds_url, sds_issued_at, sds_expires_at,
+          location_stored, max_quantity_l, quantity_unit, status,
+          hazard_classes, ppe_required, incompatible_with,
+          created_by, created_at, updated_at
+        ) VALUES (
+          ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, 'active',
+          ?, ?, ?,
+          ?, ?, ?
+        )
+      `).bind(
+        chemId,
+        b.un_number?.trim() ?? null,
+        b.cas_number?.trim() ?? null,
+        b.common_name.trim(),
+        b.chemical_name?.trim() ?? null,
+        b.supplier?.trim() ?? null,
+        b.physical_state,
+        b.flash_point_c ?? null,
+        b.sds_version?.trim() ?? null,
+        b.sds_url?.trim() ?? null,
+        b.sds_issued_at?.trim() ?? null,
+        b.sds_expires_at?.trim() ?? null,
+        b.location_stored?.trim() ?? null,
+        b.max_quantity_l ?? null,
+        unit,
+        JSON.stringify(Array.isArray(b.hazard_classes) ? b.hazard_classes : []),
+        JSON.stringify(Array.isArray(b.ppe_required) ? b.ppe_required : []),
+        JSON.stringify(incompat),
+        actor.sub,
+        now,
+        now,
+      ).run();
+
+      await log(db, actor.sub, 'create', `chemical:${chemId}`, { common_name: b.common_name }, ip);
+      const chemical = await db.prepare('SELECT * FROM chemicals WHERE id = ?').bind(chemId).first();
+      return json({ chemical }, 201, origin);
+    }
+
+    // ── GET /api/chemicals ────────────────────────────────────────────────────
+    // List chemicals. Filters: ?status= (default: active) &physical_state= &q=
+    // q performs a case-insensitive substring search on common_name and un_number.
+    if (method === 'GET' && path === '/api/chemicals') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+
+      const statusF = url.searchParams.get('status') || 'active';
+      const stateF  = url.searchParams.get('physical_state') || null;
+      const q       = url.searchParams.get('q')?.toLowerCase() || null;
+
+      const rows = await db.prepare(`
+        SELECT id, un_number, cas_number, common_name, chemical_name,
+               physical_state, sds_expires_at, location_stored,
+               status, hazard_classes, ppe_required, incompatible_with,
+               quantity_unit, max_quantity_l, flash_point_c,
+               sds_version, sds_url, sds_issued_at,
+               supplier, created_at, updated_at
+        FROM chemicals
+        WHERE status = ?
+          AND (? IS NULL OR physical_state = ?)
+          AND (? IS NULL OR (
+                LOWER(common_name) LIKE '%' || ? || '%'
+             OR (un_number IS NOT NULL AND LOWER(un_number) LIKE '%' || ? || '%')
+          ))
+        ORDER BY common_name ASC
+      `).bind(statusF, stateF, stateF, q, q, q).all<Record<string, unknown>>();
+
+      return json({ chemicals: rows.results ?? [] }, 200, origin);
+    }
+
+    // ── Chemicals single-record routes (:id) ──────────────────────────────────
+    const chemIdMatch = path.match(/^\/api\/chemicals\/([^\/]+)$/);
+
+    // ── GET /api/chemicals/:id ────────────────────────────────────────────────
+    // Returns the chemical record plus a list of asset nodes where it is stored.
+    if (chemIdMatch && method === 'GET') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const chemId = decodeURIComponent(chemIdMatch[1]);
+
+      const chemical = await db.prepare('SELECT * FROM chemicals WHERE id = ?').bind(chemId).first();
+      if (!chemical) return err('Chemical not found', 404, origin);
+
+      // Resolve asset_chemicals — return asset label + id for display
+      const locations = await db.prepare(`
+        SELECT ac.asset_id, ac.quantity_on_hand, ac.unit, ac.last_updated,
+               a.label, a.plant_area, a.node_type
+        FROM asset_chemicals ac
+        JOIN assets a ON a.id = ac.asset_id
+        WHERE ac.chemical_id = ?
+        ORDER BY a.label ASC
+      `).bind(chemId).all<Record<string, unknown>>();
+
+      await log(db, actor.sub, 'view', `chemical:${chemId}`, null, ip);
+      return json({ chemical, locations: locations.results ?? [] }, 200, origin);
+    }
+
+    // ── PATCH /api/chemicals/:id ──────────────────────────────────────────────
+    // Update any editable field on a chemical record.
+    // Updating sds_url / sds_version logs an 'sds_update' action for audit.
+    // Body: any subset of the writable columns.
+    if (chemIdMatch && method === 'PATCH') {
+      if (!can(actor.role, CHEM_WRITE)) return err('Forbidden', 403, origin);
+      const chemId = decodeURIComponent(chemIdMatch[1]);
+
+      const existing = await db.prepare('SELECT * FROM chemicals WHERE id = ?')
+        .bind(chemId).first<Record<string, unknown>>();
+      if (!existing) return err('Chemical not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+
+      // Validate physical_state if provided
+      const validStates = ['liquid', 'solid', 'gas', 'aerosol'];
+      if (b.physical_state && !validStates.includes(b.physical_state as string))
+        return err('physical_state must be one of: ' + validStates.join(', '), 400, origin);
+
+      // Validate quantity_unit if provided
+      const validUnits = ['L', 'kg'];
+      if (b.quantity_unit && !validUnits.includes(b.quantity_unit as string))
+        return err('quantity_unit must be L or kg', 400, origin);
+
+      // Validate status if provided
+      const validStatuses = ['active', 'archived'];
+      if (b.status && !validStatuses.includes(b.status as string))
+        return err('status must be active or archived', 400, origin);
+
+      // Validate incompatible_with ids if provided
+      if (Array.isArray(b.incompatible_with)) {
+        for (const cid of b.incompatible_with as string[]) {
+          const exists = await db.prepare('SELECT id FROM chemicals WHERE id = ?').bind(cid).first();
+          if (!exists) return err(`Incompatible chemical not found: ${cid}`, 400, origin);
+        }
+      }
+
+      const isSdsUpdate = (b.sds_url && b.sds_url !== existing.sds_url)
+                       || (b.sds_version && b.sds_version !== existing.sds_version);
+
+      // Build SET clause from provided fields
+      const allowed = [
+        'un_number','cas_number','common_name','chemical_name','supplier',
+        'physical_state','flash_point_c','sds_version','sds_url',
+        'sds_issued_at','sds_expires_at','location_stored',
+        'max_quantity_l','quantity_unit','status',
+      ];
+      const jsonAllowed = ['hazard_classes','ppe_required','incompatible_with'];
+
+      const sets: string[] = [];
+      const vals: unknown[] = [];
+
+      for (const key of allowed) {
+        if (key in b) {
+          sets.push(`${key} = ?`);
+          vals.push(b[key] ?? null);
+        }
+      }
+      for (const key of jsonAllowed) {
+        if (key in b && Array.isArray(b[key])) {
+          sets.push(`${key} = ?`);
+          vals.push(JSON.stringify(b[key]));
+        }
+      }
+
+      if (sets.length === 0) return err('No valid fields to update', 400, origin);
+
+      sets.push('updated_at = ?');
+      vals.push(new Date().toISOString());
+      vals.push(chemId);
+
+      await db.prepare(`UPDATE chemicals SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+
+      const action = isSdsUpdate ? 'sds_update' : 'update';
+      await log(db, actor.sub, action, `chemical:${chemId}`, { fields: sets }, ip);
+
+      const chemical = await db.prepare('SELECT * FROM chemicals WHERE id = ?').bind(chemId).first();
+      return json({ chemical }, 200, origin);
+    }
+
+    // ── Chemicals sub-routes (/api/chemicals/:id/...) ─────────────────────────
+    const chemSubMatch = path.match(/^\/api\/chemicals\/([^\/]+)\/([^\/]+)$/);
+
+    // ── POST /api/chemicals/:id/receipt ──────────────────────────────────────
+    // Record incoming stock of a chemical at an asset/location node.
+    // Enforces incompatibility: checks all chemicals already at the target asset
+    // against this chemical's incompatible_with list and returns a 409 with
+    // conflict details if a match is found.
+    // Body: { asset_id, quantity, unit? }
+    if (chemSubMatch && chemSubMatch[2] === 'receipt' && method === 'POST') {
+      if (!can(actor.role, ['admin', 'safety_manager', 'supervisor'] as Role[]))
+        return err('Forbidden', 403, origin);
+
+      const chemId = decodeURIComponent(chemSubMatch[1]);
+
+      const chem = await db.prepare('SELECT * FROM chemicals WHERE id = ? AND status = ?')
+        .bind(chemId, 'active').first<{
+          id: string; common_name: string;
+          incompatible_with: string; quantity_unit: string;
+        }>();
+      if (!chem) return err('Chemical not found or archived', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as {
+        asset_id?: string;
+        quantity?: number;
+        unit?: string;
+      };
+
+      if (!b.asset_id?.trim())           return err('asset_id is required', 400, origin);
+      if (b.quantity == null || isNaN(Number(b.quantity)) || Number(b.quantity) <= 0)
+        return err('quantity must be a positive number', 400, origin);
+
+      const validUnits = ['L', 'kg'];
+      const unit = b.unit && validUnits.includes(b.unit) ? b.unit : chem.quantity_unit;
+
+      // Confirm the asset exists
+      const asset = await db.prepare('SELECT id FROM assets WHERE id = ?').bind(b.asset_id.trim()).first();
+      if (!asset) return err('Asset not found', 404, origin);
+
+      // ── Incompatibility enforcement ──────────────────────────────────────
+      // 1. Parse this chemical's incompatible_with list
+      const thisIncompat: string[] = JSON.parse(chem.incompatible_with || '[]');
+
+      // 2. Get all chemicals already at the target asset
+      const atAsset = await db.prepare(
+        `SELECT ac.chemical_id, c.common_name, c.incompatible_with
+         FROM asset_chemicals ac
+         JOIN chemicals c ON c.id = ac.chemical_id
+         WHERE ac.asset_id = ?`
+      ).bind(b.asset_id.trim()).all<{
+        chemical_id: string; common_name: string; incompatible_with: string;
+      }>();
+
+      const conflicts: { chemical_id: string; common_name: string }[] = [];
+
+      for (const existing of (atAsset.results ?? [])) {
+        const existingIncompat: string[] = JSON.parse(existing.incompatible_with || '[]');
+        // Conflict if: incoming lists existing as incompatible, OR existing lists incoming as incompatible
+        if (thisIncompat.includes(existing.chemical_id) || existingIncompat.includes(chemId)) {
+          conflicts.push({ chemical_id: existing.chemical_id, common_name: existing.common_name });
+        }
+      }
+
+      if (conflicts.length > 0) {
+        return json({
+          error: 'Incompatible chemicals already stored at this location',
+          conflicts,
+          chemical_id: chemId,
+          chemical_name: chem.common_name,
+          asset_id: b.asset_id.trim(),
+        }, 409, origin);
+      }
+
+      // ── Upsert asset_chemicals ───────────────────────────────────────────
+      await db.prepare(`
+        INSERT INTO asset_chemicals (asset_id, chemical_id, quantity_on_hand, unit, last_updated)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(asset_id, chemical_id) DO UPDATE SET
+          quantity_on_hand = quantity_on_hand + excluded.quantity_on_hand,
+          unit             = excluded.unit,
+          last_updated     = excluded.last_updated
+      `).bind(
+        b.asset_id.trim(),
+        chemId,
+        Number(b.quantity),
+        unit,
+        new Date().toISOString(),
+      ).run();
+
+      await log(db, actor.sub, 'receipt', `chemical:${chemId}`, {
+        asset_id: b.asset_id, quantity: b.quantity, unit,
+      }, ip);
+
+      const updated = await db.prepare(`
+        SELECT * FROM asset_chemicals WHERE asset_id = ? AND chemical_id = ?
+      `).bind(b.asset_id.trim(), chemId).first();
+
+      return json({ asset_chemical: updated }, 200, origin);
+    }
+
+    // ── GET /api/assets/:id/chemicals ─────────────────────────────────────────
+    // List all chemicals stored at a given asset node.
+    // Used by HIRA to resolve chemicals in scope for a situational assessment.
+    const assetChemMatch = path.match(/^\/api\/assets\/([^\/]+)\/chemicals$/);
+    if (assetChemMatch && method === 'GET') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const assetId = decodeURIComponent(assetChemMatch[1]);
+
+      const asset = await db.prepare('SELECT id FROM assets WHERE id = ?').bind(assetId).first();
+      if (!asset) return err('Asset not found', 404, origin);
+
+      const rows = await db.prepare(`
+        SELECT c.id, c.common_name, c.chemical_name, c.un_number,
+               c.physical_state, c.flash_point_c, c.hazard_classes,
+               c.ppe_required, c.incompatible_with, c.sds_url,
+               ac.quantity_on_hand, ac.unit, ac.last_updated
+        FROM asset_chemicals ac
+        JOIN chemicals c ON c.id = ac.chemical_id
+        WHERE ac.asset_id = ?
+        ORDER BY c.common_name ASC
+      `).bind(assetId).all<Record<string, unknown>>();
+
+      return json({ chemicals: rows.results ?? [] }, 200, origin);
+    }
+
+    // ── END CHEMICALS REGISTER ────────────────────────────────────────────────
     // ── END INCIDENT INVESTIGATION ────────────────────────────────────────────
     return err('Not found', 404, origin);
   },
