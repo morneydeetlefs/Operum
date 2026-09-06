@@ -764,13 +764,23 @@ body::before {
   background: var(--md-surface); border-radius: 50px;
   padding: .6rem 1.2rem; font-size: .82rem; letter-spacing: .04em;
   box-shadow: 0 8px 32px rgba(0,0,0,.5);
-  transition: transform .35s cubic-bezier(.34,1.56,.64,1);
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1), opacity .4s ease;
   white-space: nowrap; border: 1px solid var(--md-border);
-  pointer-events: none;
+  pointer-events: none; opacity: 0;
 }
-#toast.show { transform: translateX(-50%) translateY(0); }
+#toast.show {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+  animation: toastAutoDismiss 3.4s forwards;
+}
+@keyframes toastAutoDismiss {
+  0%   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  70%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(16px); }
+}
 #toast.success { border-color: var(--md-success); color: var(--md-success); }
-#toast.error   { border-color: var(--md-danger);  color: var(--md-danger); }
+#toast.error   { border-color: var(--md-danger);  color: var(--md-danger);
+                 animation-duration: 5s; }
 
 /* ── Empty state ────────────────────────────────────────────────────────────── */
 .empty {
@@ -6589,9 +6599,14 @@ let toastTimer;
 function showToast(msg, type = 'success') {
   const t = $('toast');
   t.textContent = msg;
-  t.className   = `show ${type}`;
+  // Remove class first so the CSS animation restarts even for consecutive toasts
+  t.className = '';
+  // Force a reflow so the browser registers the class removal before re-adding
+  void t.offsetWidth;
+  t.className = `show ${type}`;
+  // JS timer as belt-and-braces — clears the show class after animation completes
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.className = ''; }, 3000);
+  toastTimer = setTimeout(() => { t.className = ''; }, 3600);
 }
 </script>
 
