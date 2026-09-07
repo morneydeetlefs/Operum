@@ -987,6 +987,127 @@ body::before {
   color: var(--md-danger); letter-spacing: .04em;
   display: flex; align-items: center; gap: 3px;
 }
+/* ── Tools Register ──────────────────────────────────────────────────────────── */
+.tool-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px; flex-shrink: 0;
+  border-bottom: 1px solid var(--md-border);
+}
+.tool-search {
+  flex: 1; background: var(--md-surface); border: 1px solid var(--md-border);
+  border-radius: var(--md-radius); padding: 7px 11px;
+  font-family: var(--font-body); font-size: .85rem; color: var(--md-cream);
+  outline: none; transition: border-color .2s;
+}
+.tool-search:focus { border-color: var(--md-gold-dk); }
+.tool-search::placeholder { color: var(--md-muted); }
+.tool-list { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.tool-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 11px 0; border-bottom: 1px solid var(--md-border);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.tool-row:hover { background: var(--md-surface); margin: 0 -14px; padding: 11px 14px; }
+.tool-row:last-child { border-bottom: none; }
+.tool-row-icon {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; border: 1px solid var(--md-border);
+  background: var(--md-surface);
+}
+.tool-row-icon.lifting_tackle { border-color: var(--md-danger);   background: rgba(201,76,76,.08); }
+.tool-row-icon.instrument     { border-color: var(--md-info);     background: rgba(76,143,201,.08); }
+.tool-row-icon.ppe            { border-color: var(--md-success);  background: rgba(76,175,122,.08); }
+.tool-row-icon.general_tool   { border-color: var(--md-gold-dk);  background: rgba(201,148,60,.06); }
+.tool-row-body { flex: 1; min-width: 0; }
+.tool-row-name {
+  font-size: .88rem; color: var(--md-cream); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tool-row-meta {
+  font-family: var(--font-mono); font-size: .62rem;
+  color: var(--md-muted); margin-top: 2px; letter-spacing: .03em;
+}
+.tool-status-pill {
+  font-family: var(--font-mono); font-size: .55rem; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 20px; flex-shrink: 0;
+}
+.tool-status-pill.in_service    { background: rgba(76,175,122,.12);  color: var(--md-success); }
+.tool-status-pill.out_of_service{ background: rgba(212,132,42,.15);  color: var(--md-warning); }
+.tool-status-pill.condemned     { background: rgba(201,76,76,.15);   color: var(--md-danger); }
+.tool-status-pill.lost          { background: rgba(122,109,88,.15);  color: var(--md-muted); }
+.tool-overdue-warn {
+  font-family: var(--font-mono); font-size: .55rem;
+  color: var(--md-danger); letter-spacing: .04em;
+}
+/* Tool detail modal */
+.tool-detail-modal {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,.6); display: none; align-items: flex-end;
+}
+.tool-detail-modal.open { display: flex; }
+.tool-detail-sheet {
+  background: var(--md-dark);
+  border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
+  border-top: 1px solid var(--md-border);
+  width: 100%; max-height: 92vh;
+  display: flex; flex-direction: column;
+  animation: slideUp .22s ease;
+}
+.tool-detail-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 18px 20px 0; flex-shrink: 0;
+}
+.tool-detail-id {
+  font-family: var(--font-brand); font-size: 1rem; font-weight: 600;
+  color: var(--md-gold-lt); letter-spacing: .06em;
+}
+.tool-detail-sub {
+  font-family: var(--font-mono); font-size: .68rem;
+  color: var(--md-gold-dk); margin-top: 3px; letter-spacing: .04em;
+}
+.tool-detail-tabs {
+  display: flex; border-bottom: 1px solid var(--md-border);
+  padding: 0 20px; overflow-x: auto; scrollbar-width: none;
+  flex-shrink: 0; margin-top: 12px;
+}
+.tool-detail-tabs::-webkit-scrollbar { display: none; }
+.tool-detail-tab {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  font-family: var(--font-mono); font-size: .65rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--md-muted); padding: 10px 14px 9px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color .15s, border-color .15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.tool-detail-tab:hover  { color: var(--md-gold-lt); }
+.tool-detail-tab.active { color: var(--md-gold); border-bottom-color: var(--md-gold); }
+.tool-detail-body  { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
+.tool-detail-panel { display: none; }
+.tool-detail-panel.active { display: block; }
+.tool-action-bar {
+  padding: 12px 20px; border-top: 1px solid var(--md-border);
+  display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+}
+.insp-row {
+  padding: 10px 0; border-bottom: 1px solid var(--md-border); font-size: .85rem;
+}
+.insp-row:last-child { border-bottom: none; }
+.insp-result-pill {
+  font-family: var(--font-mono); font-size: .6rem; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 20px; display: inline-block;
+}
+.insp-result-pill.pass      { background: rgba(76,175,122,.12); color: var(--md-success); }
+.insp-result-pill.fail      { background: rgba(212,132,42,.15); color: var(--md-warning); }
+.insp-result-pill.condemned { background: rgba(201,76,76,.15);  color: var(--md-danger); }
+.issue-row {
+  padding: 10px 0; border-bottom: 1px solid var(--md-border); font-size: .85rem;
+}
+.issue-row:last-child { border-bottom: none; }
+/* New/Edit tool sheet z-index 70 */
+#newToolModal, #inspectionModal, #issueModal, #returnModal { z-index: 70; }
+
 /* ── Chemicals Register ──────────────────────────────────────────────────────── */
 .chem-toolbar {
   display: flex; align-items: center; gap: 8px;
@@ -1499,6 +1620,10 @@ body::before {
           border-bottom:2px solid transparent;color:var(--md-muted);font-family:var(--font-mono);
           font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;background:transparent;"
           onclick="showSubView('assets')">Assets</button>
+        <button class="btn" id="subToolsBtn" style="flex:1;border-radius:0;border:none;padding:12px;
+          border-bottom:2px solid transparent;color:var(--md-muted);font-family:var(--font-mono);
+          font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;background:transparent;"
+          onclick="showSubView('tools')">Tools</button>
       </div>
 
       <!-- Employees sub-view -->
@@ -1547,6 +1672,39 @@ body::before {
           <div class="loader"><div class="spin"></div> Loading assets…</div>
         </div>
       </div>
+
+      <!-- Tools Register sub-view -->
+      <div id="subTools" style="display:none;flex-direction:column;height:100%;">
+
+        <div class="tool-toolbar">
+          <input class="tool-search" id="toolSearch" type="search"
+                 placeholder="Search name, tag or serial…"
+                 oninput="filterToolList(this.value)"/>
+          <button class="btn btn-gold" style="font-size:.75rem;padding:6px 12px;flex-shrink:0;"
+                  onclick="openNewToolSheet()">+ Add</button>
+        </div>
+
+        <!-- Category + status filter chips -->
+        <div style="display:flex;gap:6px;padding:8px 16px 0;overflow-x:auto;scrollbar-width:none;flex-shrink:0;">
+          <button class="filter-chip active" data-cat="" onclick="filterToolCat(this)">All</button>
+          <button class="filter-chip" data-cat="lifting_tackle" onclick="filterToolCat(this)">Lifting</button>
+          <button class="filter-chip" data-cat="instrument"     onclick="filterToolCat(this)">Instruments</button>
+          <button class="filter-chip" data-cat="ppe"            onclick="filterToolCat(this)">PPE</button>
+          <button class="filter-chip" data-cat="general_tool"   onclick="filterToolCat(this)">General</button>
+        </div>
+        <div style="display:flex;gap:6px;padding:6px 16px 8px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;border-bottom:1px solid var(--md-border);">
+          <button class="filter-chip active" data-stat="in_service"     onclick="filterToolStat(this)">In Service</button>
+          <button class="filter-chip" data-stat="out_of_service" onclick="filterToolStat(this)">Out of Service</button>
+          <button class="filter-chip" data-stat="condemned"      onclick="filterToolStat(this)">Condemned</button>
+          <button class="filter-chip" data-stat="lost"           onclick="filterToolStat(this)">Lost</button>
+          <button class="filter-chip" data-stat="__overdue__"    onclick="filterToolStat(this)">⚠ Overdue</button>
+        </div>
+
+        <div class="tool-list" id="toolList">
+          <div class="loader"><div class="spin"></div> Loading…</div>
+        </div>
+      </div>
+
     </div>
 
     <!-- ── SAFETY module (stub) ─────────────────────────────────────────────── -->
@@ -3259,12 +3417,16 @@ function showSubView(view) {
   currentSubView = view;
   $('subEmployees').style.display = view === 'employees' ? 'block' : 'none';
   $('subAssets').style.display    = view === 'assets'    ? 'block' : 'none';
-  $('subEmpBtn').style.borderBottomColor = view === 'employees' ? 'var(--md-gold)' : 'transparent';
-  $('subEmpBtn').style.color             = view === 'employees' ? 'var(--md-gold)' : 'var(--md-muted)';
-  $('subAssetBtn').style.borderBottomColor = view === 'assets' ? 'var(--md-gold)' : 'transparent';
-  $('subAssetBtn').style.color             = view === 'assets' ? 'var(--md-gold)' : 'var(--md-muted)';
+  $('subTools').style.display     = view === 'tools'     ? 'flex'  : 'none';
+  $('subEmpBtn').style.borderBottomColor   = view === 'employees' ? 'var(--md-gold)' : 'transparent';
+  $('subEmpBtn').style.color               = view === 'employees' ? 'var(--md-gold)' : 'var(--md-muted)';
+  $('subAssetBtn').style.borderBottomColor = view === 'assets'    ? 'var(--md-gold)' : 'transparent';
+  $('subAssetBtn').style.color             = view === 'assets'    ? 'var(--md-gold)' : 'var(--md-muted)';
+  $('subToolsBtn').style.borderBottomColor = view === 'tools'     ? 'var(--md-gold)' : 'transparent';
+  $('subToolsBtn').style.color             = view === 'tools'     ? 'var(--md-gold)' : 'var(--md-muted)';
   if (view === 'employees') loadEmployees();
   if (view === 'assets')    loadAssetTree(currentParentId);
+  if (view === 'tools')     loadToolList();
 }
 
 // ─── [A] Dashboard ────────────────────────────────────────────────────────────
@@ -6299,6 +6461,475 @@ function confirmIncompatSelection() {
 
 // ─── End Safety module ────────────────────────────────────────────────────────
 
+// ─── Tools Register ────────────────────────────────────────────────────────────
+
+const TOOL_CAT_LABEL = {
+  lifting_tackle: 'Lifting Tackle', instrument: 'Instrument',
+  ppe: 'PPE', general_tool: 'General Tool',
+};
+const TOOL_CAT_ICON = {
+  lifting_tackle: '⛓️', instrument: '🔬', ppe: '🦺', general_tool: '🔧',
+};
+
+let toolAll         = [];
+let toolFiltered    = [];
+let toolCatFilter   = '';
+let toolStatFilter  = 'in_service';
+let currentTool     = null;
+let toolEmpCache    = [];   // reuse allEmployees if loaded, else fetch once
+
+// ── List ─────────────────────────────────────────────────────────────────────
+
+async function loadToolList() {
+  const list = $('toolList');
+  list.innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
+  try {
+    const params = toolStatFilter === '__overdue__'
+      ? '?overdue=1'
+      : `?status=${toolStatFilter}`;
+    const data = await apiFetch(`/tools${params}`);
+    toolAll = data.tools || [];
+    applyToolFilter();
+  } catch (e) {
+    list.innerHTML = `<div class="empty" style="color:var(--md-danger)">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function applyToolFilter() {
+  const q = ($('toolSearch')?.value || '').toLowerCase().trim();
+  toolFiltered = toolAll.filter(t => {
+    const matchCat = !toolCatFilter || t.category === toolCatFilter;
+    const matchQ   = !q
+      || t.name.toLowerCase().includes(q)
+      || (t.tag_number    && t.tag_number.toLowerCase().includes(q))
+      || (t.serial_number && t.serial_number.toLowerCase().includes(q));
+    return matchCat && matchQ;
+  });
+  renderToolList();
+}
+
+function filterToolList(val) { applyToolFilter(); }
+
+function filterToolCat(btn) {
+  document.querySelectorAll('#subTools .filter-chip[data-cat]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  toolCatFilter = btn.dataset.cat;
+  applyToolFilter();
+}
+
+function filterToolStat(btn) {
+  document.querySelectorAll('#subTools .filter-chip[data-stat]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  toolStatFilter = btn.dataset.stat;
+  loadToolList();
+}
+
+function renderToolList() {
+  const list = $('toolList');
+  if (!toolFiltered.length) {
+    list.innerHTML = `<div class="empty">
+      <div class="empty-title">No tools found</div>
+      <div class="empty-sub">Tap Add to register a tool or instrument.</div>
+    </div>`;
+    return;
+  }
+  const today = new Date().toISOString().slice(0, 10);
+  list.innerHTML = '';
+  toolFiltered.forEach(t => {
+    const overdue = t.next_inspection_due && t.next_inspection_due < today;
+    const warn30  = t.next_inspection_due && !overdue &&
+      new Date(t.next_inspection_due) - new Date() < 30 * 86400 * 1000;
+    const row = document.createElement('div');
+    row.className = 'tool-row';
+    row.onclick = () => openToolDetail(t.id);
+    row.innerHTML = `
+      <div class="tool-row-icon ${t.category}">${TOOL_CAT_ICON[t.category] || '🔧'}</div>
+      <div class="tool-row-body">
+        <div class="tool-row-name">${escHtml(t.name)}</div>
+        <div class="tool-row-meta">
+          ${t.id}${t.tag_number ? ' · ' + escHtml(t.tag_number) : ''}
+          ${t.owner_name ? ' · ' + escHtml(t.owner_name) : ''}
+        </div>
+        ${overdue ? `<div class="tool-overdue-warn">⚠ Inspection overdue since ${t.next_inspection_due}</div>` : ''}
+        ${warn30  ? `<div class="tool-overdue-warn" style="color:var(--md-warning);">⚠ Inspection due ${t.next_inspection_due}</div>` : ''}
+      </div>
+      <span class="tool-status-pill ${t.status}">${t.status.replace('_',' ')}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// ── Detail ────────────────────────────────────────────────────────────────────
+
+async function openToolDetail(toolId) {
+  $('toolDetailModal').classList.add('open');
+  // Reset tabs
+  document.querySelectorAll('.tool-detail-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tool-detail-panel').forEach(p => p.classList.remove('active'));
+  $s('.tool-detail-tab')?.classList.add('active');
+  $('ttDetails')?.classList.add('active');
+
+  try {
+    const data = await apiFetch(`/tools/${encodeURIComponent(toolId)}`);
+    currentTool = data.tool;
+    renderToolDetail(data);
+  } catch(e) {
+    showToast('Failed to load tool: ' + e.message, 'error');
+    closeToolDetail();
+  }
+}
+
+function renderToolDetail(data) {
+  const t = data.tool;
+  const inspections = data.inspections || [];
+  const openIssues  = data.open_issues  || [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  $('tdId').textContent  = t.id;
+  $('tdSub').textContent = t.name + (t.ownership === 'personal' && t.owner_name ? ` — ${t.owner_name}` : '');
+
+  // Details tab
+  $('tdCategory').textContent = TOOL_CAT_LABEL[t.category] || t.category;
+
+  const overdue = t.next_inspection_due && t.next_inspection_due < today;
+  $('tdStatus').innerHTML = `<span class="tool-status-pill ${t.status}" style="font-size:.72rem;">${t.status.replace('_',' ')}</span>`
+    + (overdue ? ' <span style="color:var(--md-danger);font-family:var(--font-mono);font-size:.65rem;">INSP OVERDUE</span>' : '');
+
+  $('tdTag').textContent      = t.tag_number    || '—';
+  $('tdSerial').textContent   = t.serial_number  || '—';
+  $('tdMfr').textContent      = t.manufacturer   || '—';
+  $('tdModel').textContent    = t.model          || '—';
+  $('tdOwnership').textContent = t.ownership === 'personal'
+    ? `Personal — ${t.owner_name || t.owner_emp_id}` : 'Site-owned';
+  $('tdLocation').textContent = t.location_label || '—';
+
+  // WLL — lifting tackle only
+  $('tdWllRow').style.display = t.category === 'lifting_tackle' ? '' : 'none';
+  $('tdWll').textContent = t.wll_kg != null ? `${t.wll_kg} ${t.wll_unit}` : '—';
+
+  // PPE spec — ppe only
+  $('tdPpeRow').style.display = t.category === 'ppe' ? '' : 'none';
+  $('tdPpeSpec').textContent = t.ppe_spec || '—';
+
+  // Inspection fields
+  $('tdLastInsp').textContent  = t.last_inspected_at    ? t.last_inspected_at.slice(0,10)    : '—';
+  $('tdNextDue').innerHTML     = t.next_inspection_due
+    ? t.next_inspection_due.slice(0,10)
+      + (overdue ? ' <span style="color:var(--md-danger);font-family:var(--font-mono);font-size:.62rem;">OVERDUE</span>' : '')
+    : '—';
+  $('tdInterval').textContent  = t.inspection_interval_days ? `${t.inspection_interval_days} days` : '—';
+  $('tdInspector').textContent = t.inspector_name  || '—';
+  $('tdCertRef').textContent   = t.certificate_ref || '—';
+  $('tdCertLinkRow').innerHTML = t.certificate_url
+    ? `<a href="${escHtml(t.certificate_url)}" target="_blank" rel="noopener"
+         style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-info);">↗ Open Certificate</a>`
+    : '<span style="color:var(--md-muted);font-size:.82rem;">No certificate on file</span>';
+
+  // Inspections tab
+  $('tdInspList').innerHTML = inspections.length
+    ? inspections.map(i => `
+        <div class="insp-row">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="insp-result-pill ${i.result}">${i.result}</span>
+            <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-muted);">${i.inspected_at?.slice(0,10)}</span>
+            <span style="font-size:.82rem;color:var(--md-cream);">${escHtml(i.inspector_name)}</span>
+          </div>
+          ${i.findings ? `<div style="font-size:.82rem;color:var(--md-muted);margin-top:2px;">${escHtml(i.findings)}</div>` : ''}
+          ${i.certificate_url ? `<a href="${escHtml(i.certificate_url)}" target="_blank" rel="noopener"
+            style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-info);">↗ Certificate</a>` : ''}
+        </div>`).join('')
+    : '<div class="empty"><div class="empty-title">No inspections recorded</div></div>';
+
+  // Issues tab
+  $('tdIssueList').innerHTML = openIssues.length
+    ? `<div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);letter-spacing:.08em;
+           text-transform:uppercase;margin-bottom:8px;">Open Issues</div>`
+      + openIssues.map(i => `
+        <div class="issue-row">
+          <div style="font-size:.88rem;color:var(--md-cream);">${escHtml(i.issued_to_name || i.issued_to_emp)}</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);">
+            Issued ${i.issued_at?.slice(0,10)}
+            ${i.swp_title ? ' · ' + escHtml(i.swp_title) : ''}
+            ${i.expected_return ? ' · Due ' + i.expected_return.slice(0,10) : ''}
+          </div>
+        </div>`).join('')
+    : '<div class="empty"><div class="empty-title">No open issues</div><div class="empty-sub">Tool is in stores.</div></div>';
+
+  // Action bar — role-gated
+  const canWrite = actor && ['admin','safety_manager','maintenance_planner'].includes(actor.role);
+  const canIssue = actor && ['admin','safety_manager','maintenance_planner','supervisor'].includes(actor.role);
+  const isOut    = openIssues.length > 0;
+  const condemned = t.status === 'condemned';
+
+  $('toolActionBar').innerHTML = [
+    canWrite && !condemned ? `<button class="btn btn-secondary" style="flex:1;font-size:.78rem;"
+      onclick="openInspectionSheet()">Record Inspection</button>` : '',
+    canIssue && !condemned && !isOut ? `<button class="btn btn-secondary" style="flex:1;font-size:.78rem;"
+      onclick="openIssueSheet()">Issue</button>` : '',
+    canIssue && isOut ? `<button class="btn btn-secondary" style="flex:1;font-size:.78rem;"
+      onclick="openReturnSheet()">Return</button>` : '',
+    t.certificate_url ? `<a class="btn btn-secondary" style="flex:1;font-size:.78rem;text-align:center;text-decoration:none;"
+      href="${escHtml(t.certificate_url)}" target="_blank" rel="noopener">Certificate ↗</a>` : '',
+  ].filter(Boolean).join('');
+}
+
+function openToolTab(panelId, btn) {
+  document.querySelectorAll('.tool-detail-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tool-detail-tab').forEach(b => b.classList.remove('active'));
+  $s(`#${panelId}`)?.classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+function closeToolDetail() {
+  $('toolDetailModal').classList.remove('open');
+  currentTool = null;
+}
+
+// ── New Tool sheet ────────────────────────────────────────────────────────────
+
+function openNewToolSheet() {
+  ['ntName','ntTag','ntSerial','ntMfr','ntModel','ntOwnerSearch',
+   'ntWll','ntPpeSpec','ntCertRef','ntCertUrl','ntInspectorName'].forEach(id => {
+    const el = $(id); if (el) el.value = '';
+  });
+  $('ntCategory').value = '';
+  $('ntOwnership').value = 'site';
+  $('ntOwnerEmpId').value = '';
+  $('ntInterval').value = '';
+  $('ntNextDue').value = '';
+  $('ntLastInsp').value = '';
+  $('ntWllUnit').value = 'kg';
+  updateNewToolFields();
+  $('newToolModal').classList.add('open');
+}
+
+function closeNewToolSheet() { $('newToolModal').classList.remove('open'); }
+
+function updateNewToolFields() {
+  const cat = $('ntCategory').value;
+  const own = $('ntOwnership').value;
+  $('ntWllRow').style.display    = cat === 'lifting_tackle' ? '' : 'none';
+  $('ntPpeRow').style.display    = cat === 'ppe'            ? '' : 'none';
+  $('ntOwnerRow').style.display  = own === 'personal'       ? '' : 'none';
+}
+
+async function searchToolOwner(q) {
+  await ensureToolEmpCache();
+  const res = $('ntOwnerResults');
+  const matches = toolEmpCache.filter(e => e.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+  if (!q.trim() || !matches.length) { res.style.display = 'none'; return; }
+  res.style.display = 'block';
+  res.innerHTML = matches.map(e => `
+    <div style="padding:8px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--md-border);"
+         onclick="selectToolOwner('${escHtml(e.id)}','${escHtml(e.name)}')">
+      ${escHtml(e.name)}
+      <span style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);"> ${escHtml(e.id)}</span>
+    </div>`).join('');
+}
+
+function selectToolOwner(id, name) {
+  $('ntOwnerEmpId').value  = id;
+  $('ntOwnerSearch').value = name;
+  $('ntOwnerResults').style.display = 'none';
+}
+
+async function ensureToolEmpCache() {
+  if (toolEmpCache.length) return;
+  if (typeof allEmployees !== 'undefined' && allEmployees.length) {
+    toolEmpCache = allEmployees; return;
+  }
+  try {
+    const d = await apiFetch('/employees');
+    toolEmpCache = d.employees || [];
+  } catch(e) { toolEmpCache = []; }
+}
+
+async function submitNewTool() {
+  const cat  = $('ntCategory').value;
+  const name = $('ntName').value.trim();
+  const own  = $('ntOwnership').value;
+
+  if (!cat)  { showToast('Category is required', 'error'); return; }
+  if (!name) { showToast('Name is required', 'error'); return; }
+  if (own === 'personal' && !$('ntOwnerEmpId').value)
+    { showToast('Select the owner employee', 'error'); return; }
+  if (cat === 'lifting_tackle' && !$('ntWll').value)
+    { showToast('Working Load Limit is required for lifting tackle', 'error'); return; }
+
+  const body = {
+    category:                 cat,
+    name,
+    ownership:                own,
+    owner_emp_id:             $('ntOwnerEmpId').value || undefined,
+    tag_number:               $('ntTag').value.trim()           || undefined,
+    serial_number:            $('ntSerial').value.trim()        || undefined,
+    manufacturer:             $('ntMfr').value.trim()           || undefined,
+    model:                    $('ntModel').value.trim()         || undefined,
+    wll_kg:                   $('ntWll').value !== '' ? parseFloat($('ntWll').value) : undefined,
+    wll_unit:                 $('ntWllUnit').value,
+    ppe_spec:                 $('ntPpeSpec').value.trim()       || undefined,
+    inspection_interval_days: $('ntInterval').value ? parseInt($('ntInterval').value) : undefined,
+    next_inspection_due:      $('ntNextDue').value              || undefined,
+    last_inspected_at:        $('ntLastInsp').value             || undefined,
+    inspector_name:           $('ntInspectorName').value.trim() || undefined,
+    certificate_ref:          $('ntCertRef').value.trim()       || undefined,
+    certificate_url:          $('ntCertUrl').value.trim()       || undefined,
+  };
+
+  try {
+    const data = await apiFetch('/tools', { method: 'POST', body: JSON.stringify(body) });
+    closeNewToolSheet();
+    showToast(`${data.tool.id} — ${name} registered`, 'success');
+    await loadToolList();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Inspection sheet ──────────────────────────────────────────────────────────
+
+function openInspectionSheet() {
+  const t = currentTool; if (!t) return;
+  $('inspModalToolId').textContent = `${t.id} — ${t.name}`;
+  $('inspDate').value = new Date().toISOString().slice(0,10);
+  $('inspResult').value = 'pass';
+  $('inspInspector').value = '';
+  $('inspFindings').value = '';
+  $('inspCertRef').value = '';
+  $('inspCertUrl').value = '';
+  $('inspNextDue').value = t.inspection_interval_days
+    ? new Date(Date.now() + t.inspection_interval_days * 86400000).toISOString().slice(0,10) : '';
+  $('inspCondemnWarn').style.display = 'none';
+  $('inspResult').onchange = () => {
+    $('inspCondemnWarn').style.display = $('inspResult').value === 'condemned' ? '' : 'none';
+    $('inspSubmitBtn').style.background = $('inspResult').value === 'condemned'
+      ? 'linear-gradient(135deg,#7a1515,#c94c4c)' : '';
+  };
+  $('inspectionModal').classList.add('open');
+}
+
+function closeInspectionSheet() { $('inspectionModal').classList.remove('open'); }
+
+async function submitInspection() {
+  const t = currentTool; if (!t) return;
+  const date      = $('inspDate').value;
+  const inspector = $('inspInspector').value.trim();
+  const result    = $('inspResult').value;
+
+  if (!date)      { showToast('Inspection date is required', 'error'); return; }
+  if (!inspector) { showToast('Inspector name is required', 'error'); return; }
+
+  const body = {
+    inspected_at:    date,
+    inspector_name:  inspector,
+    result,
+    findings:        $('inspFindings').value.trim() || undefined,
+    certificate_ref: $('inspCertRef').value.trim()  || undefined,
+    certificate_url: $('inspCertUrl').value.trim()  || undefined,
+    next_due:        $('inspNextDue').value          || undefined,
+  };
+
+  try {
+    const data = await apiFetch(`/tools/${encodeURIComponent(t.id)}/inspections`,
+      { method: 'POST', body: JSON.stringify(body) });
+    closeInspectionSheet();
+    const label = result === 'condemned' ? 'Tool condemned' : 'Inspection recorded';
+    showToast(label, result === 'condemned' ? 'error' : 'success');
+    // Refresh detail
+    const detail = await apiFetch(`/tools/${encodeURIComponent(t.id)}`);
+    currentTool = detail.tool;
+    renderToolDetail(detail);
+    await loadToolList();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Issue sheet ───────────────────────────────────────────────────────────────
+
+function openIssueSheet() {
+  const t = currentTool; if (!t) return;
+  $('issueModalToolId').textContent = `${t.id} — ${t.name}`;
+  $('issueEmpSearch').value = '';
+  $('issueEmpId').value = '';
+  $('issueEmpResults').style.display = 'none';
+  $('issueReturn').value = '';
+  $('issueModal').classList.add('open');
+}
+
+function closeIssueSheet() { $('issueModal').classList.remove('open'); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ies = $('issueEmpSearch');
+  if (ies) ies.addEventListener('input', async function() {
+  await ensureToolEmpCache();
+  const q = this.value.toLowerCase().trim();
+  const res = $('issueEmpResults');
+  const matches = toolEmpCache.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
+  if (!q || !matches.length) { res.style.display = 'none'; return; }
+  res.style.display = 'block';
+  res.innerHTML = matches.map(e => `
+    <div style="padding:8px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--md-border);"
+         onclick="selectIssueEmp('${escHtml(e.id)}','${escHtml(e.name)}')">
+      ${escHtml(e.name)}
+    </div>`).join('');
+  });
+});
+
+function selectIssueEmp(id, name) {
+  $('issueEmpId').value = id;
+  $('issueEmpSearch').value = name;
+  $('issueEmpResults').style.display = 'none';
+}
+
+async function submitIssue() {
+  const t = currentTool; if (!t) return;
+  if (!$('issueEmpId').value) { showToast('Select an employee', 'error'); return; }
+  const body = {
+    issued_to_emp:   $('issueEmpId').value,
+    expected_return: $('issueReturn').value || undefined,
+  };
+  try {
+    await apiFetch(`/tools/${encodeURIComponent(t.id)}/issue`,
+      { method: 'POST', body: JSON.stringify(body) });
+    closeIssueSheet();
+    showToast('Tool issued', 'success');
+    const detail = await apiFetch(`/tools/${encodeURIComponent(t.id)}`);
+    currentTool = detail.tool;
+    renderToolDetail(detail);
+    await loadToolList();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Return sheet ──────────────────────────────────────────────────────────────
+
+function openReturnSheet() {
+  const t = currentTool; if (!t) return;
+  $('returnModalToolId').textContent = `${t.id} — ${t.name}`;
+  $('returnCondition').value = 'good';
+  $('returnNotes').value = '';
+  $('returnModal').classList.add('open');
+}
+
+function closeReturnSheet() { $('returnModal').classList.remove('open'); }
+
+async function submitReturn() {
+  const t = currentTool; if (!t) return;
+  const body = {
+    return_condition: $('returnCondition').value,
+    return_notes:     $('returnNotes').value.trim() || undefined,
+  };
+  try {
+    const data = await apiFetch(`/tools/${encodeURIComponent(t.id)}/return`,
+      { method: 'POST', body: JSON.stringify(body) });
+    closeReturnSheet();
+    showToast(`Tool returned — ${data.new_status.replace('_',' ')}`, 'success');
+    const detail = await apiFetch(`/tools/${encodeURIComponent(t.id)}`);
+    currentTool = detail.tool;
+    renderToolDetail(detail);
+    await loadToolList();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ─── End Tools Register ────────────────────────────────────────────────────────
+
+
 // ─── Copy Subtree ─────────────────────────────────────────────────────────────
 
 let copySourceAsset   = null;   // the asset being copied
@@ -6640,6 +7271,379 @@ function showToast(msg, type = 'success') {
     </div>
   </div>
 </div>
+
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       TOOLS REGISTER MODALS
+  ══════════════════════════════════════════════════════════════════════════════ -->
+
+  <!-- Tool detail bottom sheet -->
+  <div class="tool-detail-modal" id="toolDetailModal">
+    <div class="tool-detail-sheet">
+      <div class="tool-detail-header">
+        <div>
+          <div class="tool-detail-id" id="tdId">LFT-2026-001</div>
+          <div class="tool-detail-sub" id="tdSub">Chain Block 2T</div>
+        </div>
+        <button class="close-btn" onclick="closeToolDetail()">✕</button>
+      </div>
+      <div class="tool-detail-tabs">
+        <button class="tool-detail-tab active" onclick="openToolTab('ttDetails',this)">Details</button>
+        <button class="tool-detail-tab" onclick="openToolTab('ttInspections',this)">Inspections</button>
+        <button class="tool-detail-tab" onclick="openToolTab('ttIssues',this)">Issues</button>
+      </div>
+      <div class="tool-detail-body">
+
+        <!-- Details tab -->
+        <div class="tool-detail-panel active" id="ttDetails">
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Category</div>
+              <div class="inc-field-value" id="tdCategory">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Status</div>
+              <div class="inc-field-value" id="tdStatus">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Tag Number</div>
+              <div class="inc-field-value" id="tdTag">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Serial Number</div>
+              <div class="inc-field-value" id="tdSerial">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Manufacturer</div>
+              <div class="inc-field-value" id="tdMfr">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Model</div>
+              <div class="inc-field-value" id="tdModel">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Ownership</div>
+              <div class="inc-field-value" id="tdOwnership">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Location</div>
+              <div class="inc-field-value" id="tdLocation">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row" id="tdWllRow">
+            <div class="inc-field">
+              <div class="inc-field-label">Working Load Limit</div>
+              <div class="inc-field-value" id="tdWll">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row" id="tdPpeRow">
+            <div class="inc-field">
+              <div class="inc-field-label">PPE Specification</div>
+              <div class="inc-field-value" id="tdPpeSpec">—</div>
+            </div>
+          </div>
+          <div class="inc-section-divider">Inspection</div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Last Inspected</div>
+              <div class="inc-field-value" id="tdLastInsp">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Next Due</div>
+              <div class="inc-field-value" id="tdNextDue">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Interval</div>
+              <div class="inc-field-value" id="tdInterval">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Inspector</div>
+              <div class="inc-field-value" id="tdInspector">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Certificate Ref</div>
+              <div class="inc-field-value" id="tdCertRef">—</div>
+            </div>
+          </div>
+          <div id="tdCertLinkRow" style="margin-top:4px;"></div>
+        </div>
+
+        <!-- Inspections tab -->
+        <div class="tool-detail-panel" id="ttInspections">
+          <div id="tdInspList"><div class="loader"><div class="spin"></div></div></div>
+        </div>
+
+        <!-- Issues tab -->
+        <div class="tool-detail-panel" id="ttIssues">
+          <div id="tdIssueList"><div class="loader"><div class="spin"></div></div></div>
+        </div>
+
+      </div>
+      <div class="tool-action-bar" id="toolActionBar"></div>
+    </div>
+  </div>
+
+  <!-- New Tool sheet (z-index 70) -->
+  <div class="modal-backdrop" id="newToolModal" onclick="if(event.target===this)closeNewToolSheet()">
+    <div class="modal-sheet" style="max-height:92vh;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+        <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Register Tool</div>
+        <button class="close-btn" onclick="closeNewToolSheet()">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+        <div class="inc-form">
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Category <span class="form-required">*</span></label>
+              <select class="form-input" id="ntCategory" onchange="updateNewToolFields()">
+                <option value="">— select —</option>
+                <option value="lifting_tackle">Lifting Tackle</option>
+                <option value="instrument">Instrument</option>
+                <option value="ppe">PPE</option>
+                <option value="general_tool">General Tool</option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Ownership</label>
+              <select class="form-input" id="ntOwnership" onchange="updateNewToolFields()">
+                <option value="site">Site-owned</option>
+                <option value="personal">Personal (artisan)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Name / Description <span class="form-required">*</span></label>
+            <input class="form-input" id="ntName" type="text" placeholder="e.g. Chain Block 2T"/>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Tag number</label>
+              <input class="form-input" id="ntTag" type="text" placeholder="e.g. LT-001"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Serial number</label>
+              <input class="form-input" id="ntSerial" type="text"/>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Manufacturer</label>
+              <input class="form-input" id="ntMfr" type="text"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Model</label>
+              <input class="form-input" id="ntModel" type="text"/>
+            </div>
+          </div>
+
+          <!-- Personal owner — shown when ownership = personal -->
+          <div class="form-field" id="ntOwnerRow" style="display:none;">
+            <label class="form-label">Owner (employee) <span class="form-required">*</span></label>
+            <input class="form-input" id="ntOwnerSearch" type="text" placeholder="Search employee…"
+                   oninput="searchToolOwner(this.value)"/>
+            <div id="ntOwnerResults" style="background:var(--md-surface);border:1px solid var(--md-border);
+                 border-radius:var(--md-radius);margin-top:4px;display:none;"></div>
+            <input type="hidden" id="ntOwnerEmpId"/>
+          </div>
+
+          <!-- WLL — shown for lifting_tackle -->
+          <div class="form-row" id="ntWllRow" style="display:none;">
+            <div class="form-field">
+              <label class="form-label">Working Load Limit <span class="form-required">*</span></label>
+              <input class="form-input" id="ntWll" type="number" min="0" step="0.1" placeholder="2000"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Unit</label>
+              <select class="form-input" id="ntWllUnit">
+                <option value="kg">kg</option>
+                <option value="t">t</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- PPE spec — shown for ppe -->
+          <div class="form-field" id="ntPpeRow" style="display:none;">
+            <label class="form-label">PPE Specification</label>
+            <input class="form-input" id="ntPpeSpec" type="text" placeholder="e.g. SANS 1397 Class E Size L"/>
+          </div>
+
+          <div class="inc-section-divider" style="margin-top:8px;">Inspection</div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Interval (days)</label>
+              <input class="form-input" id="ntInterval" type="number" min="1" placeholder="365"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Next due</label>
+              <input class="form-input" id="ntNextDue" type="date"/>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Last inspected</label>
+              <input class="form-input" id="ntLastInsp" type="date"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Inspector name</label>
+              <input class="form-input" id="ntInspectorName" type="text"/>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Certificate ref</label>
+              <input class="form-input" id="ntCertRef" type="text"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Certificate URL</label>
+              <input class="form-input" id="ntCertUrl" type="url" placeholder="https://…"/>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeNewToolSheet()">Cancel</button>
+        <button class="btn btn-gold" style="flex:2;" onclick="submitNewTool()">Register Tool</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Record Inspection sheet (z-index 70) -->
+  <div class="modal-backdrop" id="inspectionModal" onclick="if(event.target===this)closeInspectionSheet()">
+    <div class="modal-sheet" style="max-height:80vh;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+        <div>
+          <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Record Inspection</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);margin-top:2px;" id="inspModalToolId"></div>
+        </div>
+        <button class="close-btn" onclick="closeInspectionSheet()">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+        <div class="inc-form">
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Date inspected <span class="form-required">*</span></label>
+              <input class="form-input" id="inspDate" type="date"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Result <span class="form-required">*</span></label>
+              <select class="form-input" id="inspResult">
+                <option value="pass">Pass</option>
+                <option value="fail">Fail — out of service</option>
+                <option value="condemned">Condemned (permanent)</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Inspector name <span class="form-required">*</span></label>
+            <input class="form-input" id="inspInspector" type="text"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Findings / notes</label>
+            <textarea class="form-input" id="inspFindings" rows="3" style="resize:vertical;"></textarea>
+          </div>
+          <div id="inspCondemnWarn" style="display:none;padding:10px 12px;border-radius:var(--md-radius);
+               background:rgba(201,76,76,.1);border:1px solid rgba(201,76,76,.3);
+               color:var(--md-danger);font-size:.82rem;margin-bottom:10px;">
+            ⚠ Condemning this tool is permanent and cannot be undone. The item must be physically
+            destroyed or rendered unusable per DMR Regulation 18.
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Certificate ref</label>
+              <input class="form-input" id="inspCertRef" type="text"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Certificate URL</label>
+              <input class="form-input" id="inspCertUrl" type="url" placeholder="https://…"/>
+            </div>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Next inspection due</label>
+            <input class="form-input" id="inspNextDue" type="date"/>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeInspectionSheet()">Cancel</button>
+        <button class="btn btn-gold" style="flex:2;" id="inspSubmitBtn" onclick="submitInspection()">Record Inspection</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Issue Tool sheet (z-index 70) -->
+  <div class="modal-backdrop" id="issueModal" onclick="if(event.target===this)closeIssueSheet()">
+    <div class="modal-sheet" style="max-height:70vh;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+        <div>
+          <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Issue Tool</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);margin-top:2px;" id="issueModalToolId"></div>
+        </div>
+        <button class="close-btn" onclick="closeIssueSheet()">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+        <div class="inc-form">
+          <div class="form-field">
+            <label class="form-label">Issue to (employee) <span class="form-required">*</span></label>
+            <input class="form-input" id="issueEmpSearch" type="text" placeholder="Search employee…"
+                   oninput="searchIssueEmp(this.value)"/>
+            <div id="issueEmpResults" style="background:var(--md-surface);border:1px solid var(--md-border);
+                 border-radius:var(--md-radius);margin-top:4px;display:none;"></div>
+            <input type="hidden" id="issueEmpId"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Expected return</label>
+            <input class="form-input" id="issueReturn" type="datetime-local"/>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeIssueSheet()">Cancel</button>
+        <button class="btn btn-gold" style="flex:2;" onclick="submitIssue()">Issue Tool</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Return Tool sheet (z-index 70) -->
+  <div class="modal-backdrop" id="returnModal" onclick="if(event.target===this)closeReturnSheet()">
+    <div class="modal-sheet" style="max-height:70vh;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+        <div>
+          <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Return Tool</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);margin-top:2px;" id="returnModalToolId"></div>
+        </div>
+        <button class="close-btn" onclick="closeReturnSheet()">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+        <div class="inc-form">
+          <div class="form-field">
+            <label class="form-label">Return condition <span class="form-required">*</span></label>
+            <select class="form-input" id="returnCondition">
+              <option value="good">Good — return to service</option>
+              <option value="damaged">Damaged — out of service pending inspection</option>
+              <option value="lost">Lost</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Notes</label>
+            <textarea class="form-input" id="returnNotes" rows="3" style="resize:vertical;"
+                      placeholder="Describe damage or circumstances if applicable…"></textarea>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeReturnSheet()">Cancel</button>
+        <button class="btn btn-gold" style="flex:2;" onclick="submitReturn()">Record Return</button>
+      </div>
+    </div>
+  </div>
 
 </body>
 </html>
