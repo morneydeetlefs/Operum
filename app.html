@@ -1693,7 +1693,8 @@ body::before {
           <button class="filter-chip" data-cat="general_tool"   onclick="filterToolCat(this)">General</button>
         </div>
         <div style="display:flex;gap:6px;padding:6px 16px 8px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;border-bottom:1px solid var(--md-border);">
-          <button class="filter-chip active" data-stat="in_service"     onclick="filterToolStat(this)">In Service</button>
+          <button class="filter-chip active" data-stat=""               onclick="filterToolStat(this)">All</button>
+          <button class="filter-chip" data-stat="in_service"     onclick="filterToolStat(this)">In Service</button>
           <button class="filter-chip" data-stat="out_of_service" onclick="filterToolStat(this)">Out of Service</button>
           <button class="filter-chip" data-stat="condemned"      onclick="filterToolStat(this)">Condemned</button>
           <button class="filter-chip" data-stat="lost"           onclick="filterToolStat(this)">Lost</button>
@@ -6476,7 +6477,7 @@ const TOOL_CAT_ICON = {
 let toolAll         = [];
 let toolFiltered    = [];
 let toolCatFilter   = '';
-let toolStatFilter  = 'in_service';
+let toolStatFilter  = '';   // '' = all statuses
 let currentTool     = null;
 let toolEmpCache    = [];   // reuse allEmployees if loaded, else fetch once
 
@@ -6488,7 +6489,9 @@ async function loadToolList() {
   try {
     const params = toolStatFilter === '__overdue__'
       ? '?overdue=1'
-      : `?status=${toolStatFilter}`;
+      : toolStatFilter
+        ? `?status=${toolStatFilter}`
+        : '';   // no status filter — fetch all
     const data = await apiFetch(`/tools${params}`);
     toolAll = data.tools || [];
     applyToolFilter();
@@ -6782,6 +6785,11 @@ async function submitNewTool() {
     const data = await apiFetch('/tools', { method: 'POST', body: JSON.stringify(body) });
     closeNewToolSheet();
     showToast(`${data.tool.id} — ${name} registered`, 'success');
+    // Reset status filter to All so the new tool is always visible
+    toolStatFilter = '';
+    document.querySelectorAll('#subTools .filter-chip[data-stat]').forEach(b => {
+      b.classList.toggle('active', b.dataset.stat === '');
+    });
     await loadToolList();
   } catch(e) { showToast('Error: ' + e.message, 'error'); }
 }
