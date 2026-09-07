@@ -3259,6 +3259,43 @@ function roleLabel(role) {
   }[role] || role;
 }
 
+// ── Human-readable label maps — used across all modules ──────────────────────
+function nodeTypeLabel(t) {
+  return { site: 'Site', plant: 'Plant', area: 'Area', zone: 'Zone',
+           machine: 'Machine', equipment: 'Equipment' }[t] || t;
+}
+function incStatusLabel(s) {
+  return { open: 'Open', under_investigation: 'Investigating',
+           pending_committee: 'Committee Review', closed: 'Closed' }[s]
+    || s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function swpStatusLabel(s) {
+  return { draft: 'Draft', approved: 'Approved', archived: 'Archived' }[s]
+    || s.charAt(0).toUpperCase() + s.slice(1);
+}
+function shiftLabel(s) {
+  return { day: 'Day shift', night: 'Night shift', all_day: 'All-day' }[s]
+    || (s ? s.charAt(0).toUpperCase() + s.slice(1) + ' shift' : '');
+}
+function physStateLabel(s) {
+  return { liquid: 'Liquid', solid: 'Solid', gas: 'Gas', aerosol: 'Aerosol' }[s]
+    || (s ? s.charAt(0).toUpperCase() + s.slice(1) : '—');
+}
+function inspResultLabel(r) {
+  return { pass: 'Pass', fail: 'Fail', condemned: 'Condemned' }[r]
+    || (r ? r.charAt(0).toUpperCase() + r.slice(1) : '—');
+}
+function returnConditionLabel(c) {
+  return { good: 'Good — returned to service', damaged: 'Damaged', lost: 'Lost' }[c]
+    || (c ? c.charAt(0).toUpperCase() + c.slice(1) : '—');
+}
+function resourceTypeLabel(t) {
+  return { tool: 'Tool', spare: 'Spare', equipment: 'Equipment',
+           consumable: 'Consumable', chemical: 'Chemical' }[t]
+    || (t ? t.charAt(0).toUpperCase() + t.slice(1) : '—');
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function apiFetch(path, opts = {}) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...opts,
@@ -3654,7 +3691,7 @@ async function loadAssetTree(parentId = null) {
         <div class="tree-node-info">
           <div class="tree-node-id">${a.id}</div>
           <div class="tree-node-label">${a.label}</div>
-          <div class="tree-node-sub">${a.node_type}${a.machine_type ? ' · ' + a.machine_type : ''}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
+          <div class="tree-node-sub">${nodeTypeLabel(a.node_type)}${a.machine_type ? ' · ' + a.machine_type : ''}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
         </div>
         <div class="tree-node-right">
           <span class="badge ${critClass}">${a.criticality}</span>
@@ -3747,7 +3784,7 @@ function renderBreadcrumb() {
 function openAssetDetail(a, tab) {
   selectedAsset = a;
   $('detailName').textContent = a.label;
-  $('detailId').textContent   = `${a.id} · ${a.node_type}`;
+  $('detailId').textContent   = `${a.id} · ${nodeTypeLabel(a.node_type)}`;
 
   const critClass = { critical:'badge-critical', high:'badge-high', medium:'badge-medium', low:'badge-low' }[a.criticality] || 'badge-other';
   const hazards   = JSON.parse(a.hazards || '[]');
@@ -3876,7 +3913,7 @@ async function runQuickSearch(q) {
       <div>
         <div class="qs-result-id">${a.id}</div>
         <div class="qs-result-label">${a.label}</div>
-        <div class="qs-result-sub">${a.node_type}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
+        <div class="qs-result-sub">${nodeTypeLabel(a.node_type)}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
       </div>
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="badge ${critClass}">${a.criticality}</span>
@@ -4262,7 +4299,7 @@ function renderIncidentRow(inc, container) {
     </div>
     <div class="inc-row-right">
       <span class="inc-class-pill ${inc.classification}">${escHtml(classLabel)}</span>
-      <span class="inc-status-pill ${inc.status}">${escHtml(inc.status.replace(/_/g,' '))}</span>
+      <span class="inc-status-pill ${inc.status}">${escHtml(incStatusLabel(inc.status))}</span>
     </div>`;
 
   row.addEventListener('click', () => openIncidentDetail(inc.id));
@@ -4410,7 +4447,7 @@ function renderIncidentDetail(data) {
 
   $('incDetailPills').innerHTML = `
     <span class="inc-class-pill ${inc.classification}">${escHtml(classLabel)}</span>
-    <span class="inc-status-pill ${inc.status}">${escHtml(inc.status.replace(/_/g,' '))}</span>
+    <span class="inc-status-pill ${inc.status}">${escHtml(incStatusLabel(inc.status))}</span>
   `;
 
   const fmtDate = iso => iso
@@ -4939,7 +4976,7 @@ function renderHubSwpList(swps) {
           ${s.approved_by_name ? `<span>Approved by ${escHtml(s.approved_by_name)}</span>` : ''}
         </div>
       </div>
-      <div class="swp-status-pill ${s.status}">${s.status}</div>
+      <div class="swp-status-pill ${s.status}">${swpStatusLabel(s.status)}</div>
       <svg viewBox="0 0 24 24" fill="none" stroke="var(--md-muted)" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round"
            style="width:14px;height:14px;flex-shrink:0;">
@@ -5025,7 +5062,7 @@ function renderSWPEditor() {
                     letter-spacing:.04em;">${escHtml(selectedAsset.id)}</span>
        <span style="color:var(--md-border-lt);">·</span>
        <span style="font-size:.62rem;color:var(--md-muted);text-transform:capitalize;">
-         ${escHtml(selectedAsset.node_type || '')}
+         ${escHtml(nodeTypeLabel(selectedAsset.node_type || ''))}
        </span>`
     : s.asset_id
       ? `<span style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-gold-dk);">
@@ -5034,7 +5071,7 @@ function renderSWPEditor() {
 
   const metaParts = [
     assetLine,
-    `<span class="swp-status-pill ${s.status}">${s.status}</span>`,
+    `<span class="swp-status-pill ${s.status}">${swpStatusLabel(s.status)}</span>`,
     s.approved_by_name ? `<span>Approved by ${escHtml(s.approved_by_name)}</span>` : null,
   ].filter(Boolean);
   $('swpEditorMeta').innerHTML = metaParts.join('');
@@ -5330,7 +5367,7 @@ function renderBBSList(obs) {
     const d         = new Date(o.observed_at);
     const dateStr   = d.toLocaleDateString('en-ZA', { day:'2-digit', month:'short' });
     const timeStr   = d.toLocaleTimeString('en-ZA', { hour:'2-digit', minute:'2-digit' });
-    const shiftTxt  = o.shift ? ` · ${o.shift} shift` : '';
+    const shiftTxt  = o.shift ? ` · ${shiftLabel(o.shift)}` : '';
     const row = document.createElement('div');
     row.className = 'bbs-row';
     row.innerHTML = `
@@ -5384,7 +5421,7 @@ async function openBBSDetail(obsId) {
     const metaParts = [
       escHtml(obs.asset_label || obs.asset_id),
       `${dateStr} ${timeStr}`,
-      obs.shift ? `${obs.shift} shift` : null,
+      obs.shift ? shiftLabel(obs.shift) : null,
       obs.observed_by_name ? `Observed by ${escHtml(obs.observed_by_name)}` : null,
       obs.observed_person ? `Person: ${escHtml(obs.observed_person)}` : null,
       obs.area ? `Area: ${escHtml(obs.area)}` : null,
@@ -5710,7 +5747,7 @@ function renderTalksList(talks) {
     const mon = d.toLocaleString('en-ZA', { month: 'short' }).toUpperCase();
     const total  = t.attendance_total  ?? 0;
     const signed = t.attendance_signed ?? 0;
-    const shiftLabel = t.shift ? ` · ${t.shift.charAt(0).toUpperCase() + t.shift.slice(1)} shift` : '';
+    const shiftLabelTxt = t.shift ? ` · ${shiftLabel(t.shift)}` : '';
     const areaLabel  = t.area  ? ` · ${t.area}` : '';
     return `
       <div class="talk-row" onclick="openTalkDetail('${t.id}')">
@@ -5723,7 +5760,7 @@ function renderTalksList(talks) {
           <div class="talk-row-meta">
             <span>${escHtml(t.conducted_by)}</span>
             ${areaLabel  ? `<span>${escHtml(t.area)}</span>`  : ''}
-            ${shiftLabel ? `<span>${escHtml(t.shift)} shift</span>` : ''}
+            ${shiftLabelTxt ? `<span>${escHtml(shiftLabel(t.shift))}</span>` : ''}
           </div>
         </div>
         <div class="talk-row-attend">
@@ -5787,13 +5824,13 @@ function renderAttendanceList(attendance) {
   container.innerHTML = attendance.map(a => {
     const initials = [(a.first_name || '?')[0], (a.last_name || '?')[0]].join('').toUpperCase();
     const fullName = [a.first_name, a.last_name].filter(Boolean).join(' ') || a.emp_id;
-    const roleLabel = a.role ? a.role.replace(/_/g, ' ') : '';
+    const attendeeRole = a.role ? roleLabel(a.role) : '';
     return `
       <div class="attend-row" id="attendRow_${a.emp_id}">
         <div class="attend-avatar">${initials}</div>
         <div style="flex:1;min-width:0;">
           <div class="attend-name">${escHtml(fullName)}</div>
-          ${roleLabel ? `<div class="attend-role">${escHtml(roleLabel)}</div>` : ''}
+          ${attendeeRole ? `<div class="attend-role">${escHtml(attendeeRole)}</div>` : ''}
         </div>
         ${a.signed
           ? `<div class="attend-signed-chip">✓ Signed</div>`
@@ -5939,7 +5976,7 @@ function renderPickerList(employees) {
         <div class="attend-avatar" style="${selected ? 'border-color:var(--md-gold);color:var(--md-gold);' : ''}">${initials}</div>
         <div style="flex:1;min-width:0;">
           <div class="attend-name">${escHtml(fullName)}</div>
-          <div class="attend-role">${escHtml((e.role||'').replace(/_/g,' '))}</div>
+          <div class="attend-role">${escHtml(roleLabel(e.role||''))}</div>
         </div>
         <div id="pickerCheck_${e.id}" style="font-size:1rem;color:var(--md-gold);${selected ? '' : 'opacity:0;'}">✓</div>
       </div>`;
@@ -6080,7 +6117,7 @@ function renderChemList() {
         ${sdsExpired ? `<div class="chem-sds-warn">⚠ SDS expired ${c.sds_expires_at}</div>` : ''}
         ${sdsWarn30  ? `<div class="chem-sds-warn" style="color:var(--md-warning);">⚠ SDS expires ${c.sds_expires_at}</div>` : ''}
       </div>
-      <span class="chem-state-pill ${c.physical_state}">${c.physical_state}</span>
+      <span class="chem-state-pill ${c.physical_state}">${physStateLabel(c.physical_state)}</span>
     `;
     list.appendChild(row);
   });
@@ -6114,7 +6151,7 @@ function renderChemDetail(data) {
   $('chemDetailSub').textContent = c.common_name + (c.chemical_name ? ' — ' + c.chemical_name : '');
 
   // ── Details tab ──
-  $('cdState').textContent   = c.physical_state.charAt(0).toUpperCase() + c.physical_state.slice(1);
+  $('cdState').textContent   = physStateLabel(c.physical_state);
   $('cdFlash').textContent   = c.flash_point_c != null ? `${c.flash_point_c} °C` : '—';
   $('cdUN').textContent      = c.un_number    || '—';
   $('cdCAS').textContent     = c.cas_number   || '—';
@@ -6635,7 +6672,7 @@ function renderToolDetail(data) {
     ? inspections.map(i => `
         <div class="insp-row">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <span class="insp-result-pill ${i.result}">${i.result}</span>
+            <span class="insp-result-pill ${i.result}">${inspResultLabel(i.result)}</span>
             <span style="font-family:var(--font-mono);font-size:.72rem;color:var(--md-muted);">${i.inspected_at?.slice(0,10)}</span>
             <span style="font-size:.82rem;color:var(--md-cream);">${escHtml(i.inspector_name)}</span>
           </div>
