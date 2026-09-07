@@ -3684,7 +3684,7 @@ async function loadAssetTree(parentId = null) {
       const critClass = { critical:'badge-critical', high:'badge-high', medium:'badge-medium', low:'badge-low' }[a.criticality] || 'badge-other';
       const hasChildren = a.child_count > 0; // Worker must return child_count; fall back gracefully
       const node = document.createElement('div');
-      node.className = `tree-node${a.is_measurable ? ' measurable' : ''}`;
+      node.className = `tree-node${a.is_measurable ? ' measurable' : ''}`;  node.dataset.id = a.id;
 
       // [B] Row taps drill into children. Info button opens the detail sheet.
       node.innerHTML = `
@@ -3849,12 +3849,13 @@ function openHubTab(tabId) {
 // ─── [C] Quick-jump search ────────────────────────────────────────────────────
 
 let qsDebounce = null;
-let qsAllAssets = [];  // flat asset list fetched once per Assets sub-view visit
+// Quick search goes directly to the Worker's ?q= endpoint which searches
+// all assets at any depth — no client-side cache needed.
+let qsAllAssets = [];  // kept for copy-subtree picker (still uses cache)
 
 async function ensureQsCache() {
   if (qsAllAssets.length) return;
   try {
-    // Fetch root, then children two levels deep — same pattern as dashboard
     const data = await apiFetch('/assets');
     let all = data.assets || [];
     await Promise.all(all.map(async a => {
@@ -3886,38 +3887,46 @@ $('assetQuickSearch').addEventListener('keydown', e => {
 });
 
 async function runQuickSearch(q) {
-  await ensureQsCache();
-  const upper = q.toUpperCase();
-  const hits = qsAllAssets.filter(a =>
-    a.id.toUpperCase().includes(upper) ||
-    a.label.toUpperCase().includes(upper) ||
-    (a.machine_type || '').toUpperCase().includes(upper)
-  );
-
   const container = $('quickSearchResults');
   $('assetTree').style.display = 'none';
   $('assetBreadcrumb').style.display = 'none';
-  container.innerHTML = '';
+  container.innerHTML = '<div class="qs-no-results" style="color:var(--md-muted);">Searching…</div>';
   container.classList.add('visible');
+
+  let hits = [];
+  try {
+    // Worker ?q= searches all assets at any depth — no depth limit
+    const data = await apiFetch(`/assets?q=${encodeURIComponent(q)}`);
+    hits = data.assets || [];
+  } catch(e) {
+    container.innerHTML = `<div class="qs-no-results" style="color:var(--md-danger);">Search error: ${escHtml(e.message)}</div>`;
+    return;
+  }
+
+  container.innerHTML = '';
 
   if (!hits.length) {
     container.innerHTML = '<div class="qs-no-results">No assets match that search.</div>';
     return;
   }
 
-  hits.slice(0, 30).forEach(a => {
+  hits.forEach(a => {
     const critClass = { critical:'badge-critical', high:'badge-high', medium:'badge-medium', low:'badge-low' }[a.criticality] || 'badge-other';
     const row = document.createElement('div');
     row.className = 'qs-result';
     row.innerHTML = `
-      <div>
+      <div style="flex:1;min-width:0;">
         <div class="qs-result-id">${a.id}</div>
         <div class="qs-result-label">${a.label}</div>
         <div class="qs-result-sub">${nodeTypeLabel(a.node_type)}${a.plant_area ? ' · ' + a.plant_area : ''}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;">
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
         <span class="badge ${critClass}">${a.criticality}</span>
         ${a.is_measurable ? '<span class="badge badge-artisan" style="font-size:.6rem;">CM</span>' : ''}
+        <button class="btn btn-secondary" style="font-size:.62rem;padding:2px 7px;margin-top:2px;"
+                onclick="event.stopPropagation();navigateToAsset('${escHtml(a.id)}','${escHtml(a.parent_id||'')}')">
+          Browse ↓
+        </button>
       </div>`;
     row.addEventListener('click', () => {
       clearQuickSearch();
@@ -3926,6 +3935,26 @@ async function runQuickSearch(q) {
     });
     container.appendChild(row);
   });
+}
+
+// Navigate tree to a found asset's parent so user can browse its children
+async function navigateToAsset(assetId, parentId) {
+  clearQuickSearch();
+  $('assetQuickSearch').value = '';
+  // Load the parent node's children into the tree, then highlight the target
+  if (parentId) {
+    await loadAssetTree(parentId);
+  } else {
+    await loadAssetTree(null);
+  }
+  // Brief highlight on the target row
+  await new Promise(r => setTimeout(r, 300));
+  const targetRow = $s(`.tree-node[data-id="${CSS.escape(assetId)}"]`);
+  if (targetRow) {
+    targetRow.style.background = 'rgba(201,148,60,.15)';
+    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => { targetRow.style.background = ''; }, 1800);
+  }
 }
 
 function clearQuickSearch() {
