@@ -4854,6 +4854,7 @@ async function submitCommitteeReview() {
     renderIncidentDetail(data);
     renderCommitteeTab(data);
     openIncTab('committee');
+    reloadIncidentsAll();
   } catch (e) {
     showToast(e.message, 'error');
     $('committeeSubmitBtn').disabled    = false;
@@ -5250,6 +5251,7 @@ async function submitEditStep() {
     const data      = await apiFetch(`/swps/${encodeURIComponent(currentSWP.id)}`);
     currentSWPSteps = data.steps || [];
     renderSWPStepList();
+    loadHubSWPs();
   } catch (e) { showToast(e.message, 'error'); }
 }
 
