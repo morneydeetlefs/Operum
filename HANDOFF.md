@@ -1,5 +1,5 @@
 # Operum — Session Handoff
-## Safety Module · September 2026
+## Safety + Register Modules · September 2026
 ### MD Works · Morney Deetlefs · South Africa
 
 ---
@@ -27,17 +27,20 @@ Git identity configured: `morneydeetlefs` / `morneydeetlefs@gmail.com`. Wrangler
 - JWT payload accessed via `actor`, not `jwtPayload`
 - `$s(selector)` = `document.querySelector`; `$(id)` = element shorthand
 - `escHtml(s)` = HTML escape helper
-- `allEmployees` = module-level cache array, shared across attendee picker and incident employee search
-- `chemAll` = module-level cache array for chemicals list; `chemFiltered` = filtered view
+- `allEmployees` = module-level cache for employees (shared across attendee picker and incident search)
+- `chemAll` / `chemFiltered` = module-level cache arrays for chemicals list
+- `toolAll` / `toolFiltered` = module-level cache arrays for tools list
+- `toolEmpCache` = employee cache for tool owner/issue search (reuses allEmployees if loaded)
 - Monolith stays monolithic — `app.html` will not be split into separate files
 - Read live files from GitHub before touching anything — never work from stale context
+- **Token expansion in Git Bash:** always set `TOKEN="..."` (uppercase) and use double-quoted node strings so `$TOKEN` expands
 
 ---
 
 ## Stack
 
-- **Frontend:** Vanilla HTML / CSS / JS, single file `app.html`, no build step
-- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts`
+- **Frontend:** Vanilla HTML / CSS / JS, single file `app.html` (~7650 lines), no build step
+- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3500 lines)
 - **Database:** Cloudflare D1 (SQLite), single `operum_main` database
 - **Deploy:** Cloudflare Pages (frontend) + Wrangler (Worker)
 
@@ -46,112 +49,106 @@ Git identity configured: `morneydeetlefs` / `morneydeetlefs@gmail.com`. Wrangler
 ## What is built and deployed
 
 ### Register module
-Location hierarchy, asset register (with hazards, criticality, isolation points, documents), persons register. All live. Asset register is the platform spine — every other module references it.
+
+#### Employees + Asset Register
+Location hierarchy, asset register (hazards, criticality, isolation points, documents), persons register. All live. Asset register is the platform spine.
+
+#### Tools Register — completed this session, fully deployed
+Three tables: `tools`, `tool_inspections`, `tool_issues`. Four tables with `swp_resources`.
+
+**Schema (schema_tools.sql applied):**
+```
+tools            — LFT/INS/PPE/TLS-YYYY-NNN; ownership site|personal; status in_service|out_of_service|condemned|lost
+tool_inspections — full inspection history; condemned result sets tools.status permanently
+tool_issues      — issue/return per job or employee; swp_id nullable for onboarding issues
+swp_resources    — resource list per SWP; resource_source freetext|register|personal; ref_id → tools.id or chemicals.id
+```
+
+**Worker v1.3 — thirteen new endpoints:**
+```
+POST  /api/tools                              register (LFT/INS/PPE/TLS-YYYY-NNN)
+GET   /api/tools                              list (?category= &status= &ownership= &q= &overdue=1)
+GET   /api/tools/:id                          single + inspection history + open issues
+PATCH /api/tools/:id                          update (condemned tools locked permanently)
+POST  /api/tools/:id/inspections              record inspection; condemned→permanent status change
+POST  /api/tools/:id/issue                    ad hoc issue (single tool)
+POST  /api/tools/:id/return                   return; damaged→out_of_service, lost→lost
+GET   /api/tools/:id/swps                     SWPs that require this tool
+POST  /api/swps/:id/issue-kit                 batch issue all register resources on a SWP
+POST  /api/swps/:id/acknowledge-resources     artisan acknowledges freetext/personal items
+GET   /api/swps/:id/resources                 SWP resource list
+POST  /api/swps/:id/resources                 add resource to SWP
+DELETE /api/swps/:id/resources/:rid           remove resource
+```
+
+**Issue hard-blocks (enforced in Worker):**
+- `status` IN (`condemned`, `out_of_service`, `lost`) — no override ever
+- `next_inspection_due` < today — overdue inspection blocks issue
+- Tool already out on another job — blocks duplicate issue
+
+**UI — fully built under Register → Tools tab:**
+- List view: category filter chips (All/Lifting/Instruments/PPE/General), status filter chips (In Service/Out of Service/Condemned/Lost/⚠ Overdue), search by name/tag/serial, overdue inspection warnings (30-day amber, overdue red), status pills colour-coded
+- Detail panel — three tabs: Details (all fields, WLL for lifting tackle, PPE spec for PPE, inspection section with certificate link), Inspections (full history with result pills), Issues (open issues with employee and SWP context)
+- Action bar: Record Inspection (write-gated), Issue (when in service and not out), Return (when issued out) — condemned tools show no Issue button ever
+- Register new tool sheet: category/ownership toggles show/hide WLL, PPE spec, owner search fields dynamically
+- Record Inspection sheet: condemned result shows permanent warning banner; auto-calculates next due from interval
+- Issue sheet: employee search with live filter
+- Return sheet: condition selector; damaged→auto out_of_service, lost→auto lost
+
+**Key design decisions locked:**
+- Category-specific ID prefix: LFT (lifting tackle), INS (instruments), PPE, TLS (general tools)
+- Personal tools registered against artisan (owner_emp_id FK) — visible in register, not issuable from stores
+- Condemned status set only via inspection endpoint — cannot be set via PATCH directly
+- `swp_resources.resource_source`: freetext (acknowledge only), register (issue flow), personal (no issue needed)
+- Batch issue (`/issue-kit`) reports blocked tools individually — does not abort the whole kit for one blocked item
+- Freetext resources (e.g. "19mm spanner") can be upgraded to register-linked on the fly for ad hoc issues
+
+**Employee onboarding tool issue (future):** `tool_issues.swp_id` is nullable — when employee section is enhanced, new employees can be issued tools/PPE at onboarding using `issued_to_emp` without a `swp_id`. No schema migration needed.
+
+---
 
 ### Safety module
 
 #### Toolbox Talks
-Schema, five endpoints, full UI sub-view. Shift filters (day/night/all), inline signing, attendee picker. Fully deployed.
+Schema, five endpoints, full UI. Shift filters, inline signing, attendee picker. Fully deployed.
 
 #### Safe Work Procedures (SWP)
-SWP is the foundational safety document. Full CRUD — create, edit, steps (add/edit/delete/reorder), status workflow (draft → active → archived). Groq LLM draft layer designed to slot in via one new endpoint — schema already compatible, no migration needed when it lands.
+Full CRUD, steps (add/edit/delete/reorder), status workflow (draft → approved → archived). Groq LLM draft layer schema-compatible, no migration needed when it lands. SWP resource list schema (`swp_resources`) now deployed — UI not yet built.
 
 #### BBS Observations
-BBS is a field audit of a SWP — behaviour categories derived from SWP steps, not hardcoded. Observed person is optional freetext only (never a register lookup). List view, new observation sheet, detail view. Fully deployed.
+Field audit of SWP steps. List, new observation sheet, detail view. Fully deployed.
 
-#### Incident Investigation — fully deployed
-Maps to OHSA Act 85 of 1993 / General Administrative Regulations Annexure 2 and Section 24.
+#### Incident Investigation
+Four tables, twelve endpoints, full UI. OHSA Act 85/1993 / GAR Annexure 2 and Section 24 compliant. Fully deployed.
 
-**Schema — four tables:**
-```
-incidents                  — core incident record (INC-YYYY-NNN, auto-generated server-side)
-incident_investigations    — investigator assignment + findings
-incident_committee_reviews — committee meeting record + endorsements (immutable once set)
-incident_witnesses         — witness statements (preserved for formal inquiry / subpoena)
-```
+#### Chemicals Register — fully deployed
+Two tables (`chemicals`, `asset_chemicals`), seven endpoints.
 
-**Worker — twelve endpoints:**
-```
-POST  /api/incidents
-GET   /api/incidents
-GET   /api/incidents/:id
-PATCH /api/incidents/:id
-POST  /api/incidents/:id/notify
-POST  /api/incidents/:id/formal-report
-POST  /api/incidents/:id/investigate
-PATCH /api/incidents/:id/investigate
-POST  /api/incidents/:id/committee-review
-POST  /api/incidents/:id/endorse/chairperson
-POST  /api/incidents/:id/endorse/employer
-POST  /api/incidents/:id/witnesses
-```
-
-**Key design decisions locked:**
-- Near-miss is a first-class classification — same table, not a separate entity
-- Contractor incidents use nullable employee FK; same 3-day investigation clock applies
-- System-calculated deadlines — formal report 7 days from `reported_at`, investigation 3 days from `incident_at`
-- Endorsement immutability — superseded by new committee review record, never edited
-- Section 24 block hidden for `near_miss` and `medical_treatment` classifications
-
-#### Chemicals Register — completed this session, fully deployed
-Safety sub-phase 2a. Both HIRA and Stores depend on this module.
-
-**Schema — two tables, three indexes (schema_chemicals.sql applied):**
-```
-chemicals        — one row per substance; CHM-YYYY-NNN server-generated ID
-                   JSON arrays: hazard_classes, ppe_required, incompatible_with
-                   SDS fields: sds_version, sds_url, sds_issued_at, sds_expires_at
-                   SDS version history via access_log (action='sds_update'), not a separate table
-asset_chemicals  — composite PK junction: asset_id + chemical_id
-                   quantity_on_hand maintained in-place by receipt endpoint
-```
-
-**Worker v1.2 — seven new endpoints:**
-```
-POST  /api/chemicals                    create (CHM-YYYY-NNN, validates incompatible_with ids)
-GET   /api/chemicals                    list (?status= &physical_state= &q= substring search)
-GET   /api/chemicals/:id                single + resolved asset locations
-PATCH /api/chemicals/:id                update; logs 'sds_update' when SDS fields change
-POST  /api/chemicals/:id/receipt        receive stock at asset node
-                                        bidirectional incompatibility check → 409 with conflict list
-                                        upserts quantity_on_hand in asset_chemicals
-GET   /api/assets/:id/chemicals         chemicals at an asset node (HIRA will use this)
-GET   /api/public/chemicals/:id/sds     UNAUTHENTICATED — 302 redirect to sds_url (QR code target)
-```
-
-**UI — fully built:**
-- List view: search bar (name / UN / CAS), state filter chips (All / Liquid / Solid / Gas / Aerosol), liquid icon colour-coded by state, state pill, SDS expiry warnings (30-day amber, expired red)
-- Detail panel — slide-up, three tabs:
-  - **Details:** physical state, flash point, UN, CAS, IUPAC name, supplier, storage location, max quantity, SDS section (version, issued, expires with EXPIRED badge, Open SDS Document link)
-  - **Hazards & PPE:** GHS hazard class tags (red), required PPE tags (green), incompatible chemicals tags (amber)
-  - **Locations:** list of asset nodes where chemical is stored with quantity on hand; empty state prompts Receipt
-- Action bar: View Locations, Open SDS (when sds_url present)
-- New Chemical sheet (z-index 70, above detail): common name, IUPAC name, physical state, flash point, UN, CAS, supplier, storage location, max quantity + unit, SDS fields, hazard classes textarea (one per line), PPE textarea (one per line)
-
-**Key design decisions locked:**
-- CHM-YYYY-NNN sequential within year, server-generated
-- JSON arrays for hazard_classes, ppe_required, incompatible_with — same pattern as asset hazards/isolation_pts
-- SDS version history via access_log only (no separate versions table) — upgrade when version browsing is needed
-- asset_chemicals junction table with composite PK — HIRA queries `GET /api/assets/:id/chemicals`
-- Receipt endpoint only (no receipts table) — Stores module will add full stock movement audit trail
-- Public SDS route before auth gate — unauthenticated 302 redirect for QR codes printed on containers
-- Incompatibility is bidirectional: conflict fires if A lists B OR if B lists A
+**Key capabilities:**
+- CHM-YYYY-NNN server-generated ID
+- JSON arrays: `hazard_classes`, `ppe_required`, `incompatible_with`
+- Bidirectional incompatibility sync: when A lists B as incompatible, B's array is automatically updated
+- Receipt endpoint enforces incompatibility at delivery (409 with conflict list)
+- SDS version history via `access_log` (action=`sds_update`) — no separate versions table
+- Public SDS route (`/api/public/chemicals/:id/sds`) — unauthenticated 302 redirect for QR codes
+- Edit all fields including incompatibles picker; archive/unarchive; all writes audit-logged distinctly
+- `GET /api/assets/:id/chemicals` — HIRA will use this to resolve chemicals at a location
 
 ---
 
-## Worker endpoint map (full — all modules)
+## Worker endpoint map (full)
 
 ```
 AUTH
-  POST /api/auth/token             dev-only, issues JWT to anyone — remove before production
-  POST /api/login                  real login
+  POST /api/auth/token             dev-only — remove before production
+  POST /api/login
 
 EMPLOYEES
-  GET  /api/employees              list all
-  POST /api/employees              create
-  GET  /api/employees/:id          single
+  GET  /api/employees
+  POST /api/employees
+  GET  /api/employees/:id
 
-LIBRARY (SWP task library)
+LIBRARY
   GET  /api/library/suggest
   GET  /api/library
   POST /api/library
@@ -159,8 +156,7 @@ LIBRARY (SWP task library)
   DELETE /api/library/:prefix
 
 ASSETS
-  GET  /api/assets
-  POST /api/assets
+  GET/POST /api/assets
   GET/PATCH/DELETE /api/assets/:id
   GET  /api/assets/:id/subtree-count
   POST /api/assets/:id/copy
@@ -169,28 +165,28 @@ ASSETS
   GET  /api/log
 
 TOOLBOX TALKS
-  GET  /api/talks
-  POST /api/talks
+  GET/POST /api/talks
   GET  /api/talks/:id
   POST /api/talks/:id/attend
   PATCH /api/talks/:id/attend/:emp_id
 
 SAFE WORK PROCEDURES
-  GET  /api/assets/:id/swps
-  POST /api/assets/:id/swps
+  GET/POST /api/assets/:id/swps
   GET  /api/swps/:id
   PATCH /api/swps/:id
   POST /api/swps/:id/steps
   PATCH /api/swps/:id/steps/:stepId
   DELETE /api/swps/:id/steps/:stepId
+  GET/POST /api/swps/:id/resources
+  DELETE /api/swps/:id/resources/:rid
+  POST /api/swps/:id/issue-kit
+  POST /api/swps/:id/acknowledge-resources
 
 BBS OBSERVATIONS
-  GET  /api/bbs
-  POST /api/bbs
-  GET  /api/bbs/:id
-  PATCH /api/bbs/:id
+  GET/POST /api/bbs
+  GET/PATCH /api/bbs/:id
 
-CONDITION MONITORING (DiagnosticWand — shared DB/Worker)
+CONDITION MONITORING
   GET  /api/assets/measurable/trends
   GET  /api/assets/measurable
   GET  /api/assets/:id/trend
@@ -214,47 +210,53 @@ INCIDENT INVESTIGATION
   POST  /api/incidents/:id/witnesses
 
 CHEMICALS REGISTER
-  POST  /api/chemicals
-  GET   /api/chemicals
-  GET   /api/chemicals/:id
-  PATCH /api/chemicals/:id
-  POST  /api/chemicals/:id/receipt
-  GET   /api/assets/:id/chemicals
-  GET   /api/public/chemicals/:id/sds    (unauthenticated)
+  POST/GET /api/chemicals
+  GET/PATCH /api/chemicals/:id
+  POST /api/chemicals/:id/receipt
+  GET  /api/assets/:id/chemicals
+  GET  /api/public/chemicals/:id/sds    (unauthenticated)
+
+TOOLS REGISTER
+  POST/GET /api/tools
+  GET/PATCH /api/tools/:id
+  POST /api/tools/:id/inspections
+  POST /api/tools/:id/issue
+  POST /api/tools/:id/return
+  GET  /api/tools/:id/swps
 ```
 
 ---
 
-## Session rules
+## Key lessons learnt (session)
 
-- **Run SQL before building UI** — schema decisions locked and confirmed before any endpoint or frontend work
-- **State design decisions and get confirmation before writing code** — never assume; present options with reasoning
-- **Read live files before touching anything** — always fetch from GitHub via curl or read uploaded files; stale context causes compounding errors
-- **Deliver complete ready-to-use files** — not diffs or partial snippets
-- **Give exact sequential terminal command blocks**
-- **For complex multi-line replacements** involving TypeScript template literals, backticks, or shell metacharacters: use `python3 - << 'PYEOF'` inline scripts rather than `str_replace`
-- **Locate insertion points** with `grep -n` for landmark discovery + `sed -n` for precise range reading before any write operation
-- **Verify after each patch** with `grep -n` to confirm function names and element IDs are present
+- **Toast auto-dismiss:** Never rely solely on setTimeout. Use CSS `@keyframes` animation as primary dismiss (compositor thread, unaffected by JS throttling). Force reflow with `void t.offsetWidth` before re-adding class so animation restarts for consecutive toasts. Keep setTimeout only as cleanup fallback.
+- **Token expansion in Git Bash:** `TOKEN="..."` uppercase; node strings must be double-quoted for `$TOKEN` to expand.
+- **Stale UI audit result:** All major actions already refresh correctly. Two gaps fixed: `submitEditStep` now calls `loadHubSWPs()`, `submitCommitteeReview` now calls `reloadIncidentsAll()`.
 
 ---
 
 ## Next build sequence
 
-### Safety module — remaining
-1. **HIRA** — situational model: task + location + time + people + chemicals. NOSA three-dimensional matrix: Likelihood × Severity × Exposure, scored across Health, Safety, Environment, range 1–125. Chemicals Register must be confirmed stable before HIRA schema work begins.
-2. **BBS Observations detail view** — list and new-observation form exist; detail sheet not yet built.
+### Immediate
+1. **SWP Resources UI** — resource list tab inside SWP editor; picker for tools register and chemicals register; freetext entry; acknowledge flow for personal/freetext items; batch issue screen
+2. **BBS Observations detail view** — list and new-observation form exist; detail sheet not built
 
-### Also on the list
-3. **DiagnosticWand dashboard rewiring** — `dashboard.html` is deployed but broken, still calling old `/api/machines` endpoints which no longer exist. Must be rewired to current `/api/assets` endpoints.
+### Design discussions in progress
+3. **Contractors / Services module** — full sub-contractor work order system; Q1-Q4 answered; schema design not yet started
+   - Full work order system (not just approved vendor list)
+   - PTW relationship: contractors can hold their own PTW auth or be on a shared permit
+   - Persons register: individual contractor workers need competency/training/risk assessment proof
+   - Schema design to be done before any code
 
-### Longer horizon (locked in concept)
-- PTW (Permit to Work) — last, highest complexity; requires safety officer input before design
-- Stores module — scoped to inventory management only, no procurement; will add `chemical_receipts` table
-- Groq LLM layer — SWP draft generation (schema already compatible, slots in without migration)
+### Longer horizon
+- HIRA — situational model (task + location + time + people + chemicals); NOSA 3D matrix; threshold enforcement with criticality multiplier
+- PTW — last, highest complexity; requires safety officer input before design
+- Stores module — full stock movement audit trail; `chemical_receipts` table when built
+- Groq LLM layer — SWP draft generation (schema-compatible, no migration needed)
 - PDF export of Annexure 2
-- Versioned MSDS documents with emergency QR — public route already live, QR generation UI deferred
-- Risk acceptance sign-off flow for threshold breaches (named manager, immutable, timestamped)
-- Mandated threshold enforcement with criticality multiplier (Critical 0.5×, High 0.75×, Medium 1.0×, Low 1.25×)
+- Versioned MSDS — public route live, QR generation UI deferred
+- Risk acceptance sign-off flow for threshold breaches
+- DiagnosticWand dashboard rewiring — still broken, calls old `/api/machines` endpoints
 
 ---
 
@@ -270,17 +272,15 @@ npx wrangler deploy --env=""
 npx wrangler d1 execute operum_main --remote --file=schema.sql
 
 # Standard push (Pages auto-deploys)
-git add -A
-git commit -m "..."
-git push
+git add -A && git commit -m "..." && git push
 
-# Get a JWT for API testing — run in browser DevTools console while logged in
+# Get JWT — run in browser DevTools console while logged in
 sessionStorage.getItem('operum_token') || localStorage.getItem('operum_token')
 
-# Test an endpoint (Git Bash) — note double-quotes so $TOKEN expands
+# Test endpoint (Git Bash) — TOKEN must be uppercase, string must be double-quoted
 TOKEN="eyJ..."
 node -e "
-fetch('https://operum-worker.morneydeetlefs.workers.dev/api/chemicals', {
+fetch('https://operum-worker.morneydeetlefs.workers.dev/api/tools', {
   headers: { 'Authorization': 'Bearer $TOKEN' }
 }).then(r => r.json()).then(d => console.log(JSON.stringify(d, null, 2)))
 "
@@ -290,11 +290,11 @@ fetch('https://operum-worker.morneydeetlefs.workers.dev/api/chemicals', {
 
 ## To start a fresh chat
 
-Upload `worker.ts` and `app.html` from the live repo alongside this file. Do not rely on this document alone — always read the live files. Say:
+Upload `worker.ts` and `app.html` from the live repo alongside this file. Say:
 
 > "I'm Morney Deetlefs (MD Works, South Africa). I'm continuing work on Operum — a mobile-first industrial operations PWA. Stack: Cloudflare Workers (TypeScript), D1 (SQLite), Cloudflare Pages. Read the attached HANDOFF.md, worker.ts, and app.html before doing anything."
 
 ---
 
 *✦ MD Works · Morney Deetlefs · South Africa*
-*Handoff generated: September 2026*
+*Handoff updated: September 2026*
