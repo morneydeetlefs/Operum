@@ -987,7 +987,7 @@ body::before {
   color: var(--md-danger); letter-spacing: .04em;
   display: flex; align-items: center; gap: 3px;
 }
-/* ── Tools Register ──────────────────────────────────────────────────────────── */
+/* ── Tools Register v2 ───────────────────────────────────────────────────────── */
 .tool-toolbar {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 16px; flex-shrink: 0;
@@ -1001,24 +1001,49 @@ body::before {
 }
 .tool-search:focus { border-color: var(--md-gold-dk); }
 .tool-search::placeholder { color: var(--md-muted); }
+/* Type list (catalogue) */
 .tool-list { flex: 1; overflow-y: auto; padding: 10px 14px; }
+.type-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--md-border);
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+}
+.type-row:hover { background: var(--md-surface); margin: 0 -14px; padding: 12px 14px; }
+.type-row:last-child { border-bottom: none; }
+.type-row-icon {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; border: 1px solid var(--md-border);
+  background: var(--md-surface);
+}
+.type-row-icon.lifting_tackle { border-color: var(--md-danger);  background: rgba(201,76,76,.08); }
+.type-row-icon.instrument     { border-color: var(--md-info);    background: rgba(76,143,201,.08); }
+.type-row-icon.ppe            { border-color: var(--md-success); background: rgba(76,175,122,.08); }
+.type-row-icon.general_tool   { border-color: var(--md-gold-dk); background: rgba(201,148,60,.06); }
+.type-row-body { flex: 1; min-width: 0; }
+.type-row-name {
+  font-size: .9rem; color: var(--md-cream); font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.type-row-meta {
+  font-family: var(--font-mono); font-size: .62rem;
+  color: var(--md-muted); margin-top: 3px; letter-spacing: .03em;
+}
+.type-avail-pill {
+  font-family: var(--font-mono); font-size: .55rem; letter-spacing: .06em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 20px;
+  flex-shrink: 0; white-space: nowrap;
+}
+.type-avail-pill.has-stock  { background: rgba(76,175,122,.12); color: var(--md-success); }
+.type-avail-pill.no-stock   { background: rgba(201,76,76,.12);  color: var(--md-danger); }
+/* Instance rows (inside type detail sheet) */
 .tool-row {
   display: flex; align-items: center; gap: 12px;
   padding: 11px 0; border-bottom: 1px solid var(--md-border);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
-.tool-row:hover { background: var(--md-surface); margin: 0 -14px; padding: 11px 14px; }
+.tool-row:hover { background: var(--md-panel); margin: 0 -20px; padding: 11px 20px; }
 .tool-row:last-child { border-bottom: none; }
-.tool-row-icon {
-  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1rem; border: 1px solid var(--md-border);
-  background: var(--md-surface);
-}
-.tool-row-icon.lifting_tackle { border-color: var(--md-danger);   background: rgba(201,76,76,.08); }
-.tool-row-icon.instrument     { border-color: var(--md-info);     background: rgba(76,143,201,.08); }
-.tool-row-icon.ppe            { border-color: var(--md-success);  background: rgba(76,175,122,.08); }
-.tool-row-icon.general_tool   { border-color: var(--md-gold-dk);  background: rgba(201,148,60,.06); }
 .tool-row-body { flex: 1; min-width: 0; }
 .tool-row-name {
   font-size: .88rem; color: var(--md-cream); font-weight: 500;
@@ -1040,13 +1065,13 @@ body::before {
   font-family: var(--font-mono); font-size: .55rem;
   color: var(--md-danger); letter-spacing: .04em;
 }
-/* Tool detail modal */
-.tool-detail-modal {
+/* Type detail bottom sheet — z-index 60 */
+.tool-type-modal {
   position: fixed; inset: 0; z-index: 60;
   background: rgba(0,0,0,.6); display: none; align-items: flex-end;
 }
-.tool-detail-modal.open { display: flex; }
-.tool-detail-sheet {
+.tool-type-modal.open { display: flex; }
+.tool-type-sheet {
   background: var(--md-dark);
   border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
   border-top: 1px solid var(--md-border);
@@ -1054,6 +1079,21 @@ body::before {
   display: flex; flex-direction: column;
   animation: slideUp .22s ease;
 }
+/* Instance detail bottom sheet — z-index 70 */
+.tool-detail-modal {
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(0,0,0,.5); display: none; align-items: flex-end;
+}
+.tool-detail-modal.open { display: flex; }
+.tool-detail-sheet {
+  background: var(--md-dark);
+  border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
+  border-top: 1px solid var(--md-border);
+  width: 100%; max-height: 88vh;
+  display: flex; flex-direction: column;
+  animation: slideUp .22s ease;
+}
+/* Shared header / tabs / body / action bar (used by both sheets) */
 .tool-detail-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 18px 20px 0; flex-shrink: 0;
@@ -1105,8 +1145,9 @@ body::before {
   padding: 10px 0; border-bottom: 1px solid var(--md-border); font-size: .85rem;
 }
 .issue-row:last-child { border-bottom: none; }
-/* New/Edit tool sheet z-index 70 */
-#newToolModal, #inspectionModal, #issueModal, #returnModal { z-index: 70; }
+/* Register/Edit type sheet z-index 70; instance action sheets z-index 80 */
+#newTypeModal, #editTypeModal { z-index: 70; }
+#newToolModal, #inspectionModal, #issueModal, #returnModal { z-index: 80; }
 
 /* ── Chemicals Register ──────────────────────────────────────────────────────── */
 .chem-toolbar {
@@ -1673,35 +1714,27 @@ body::before {
         </div>
       </div>
 
-      <!-- Tools Register sub-view -->
+      <!-- Tools Register sub-view (v2 — type catalogue) -->
       <div id="subTools" style="display:none;flex-direction:column;height:100%;">
 
         <div class="tool-toolbar">
           <input class="tool-search" id="toolSearch" type="search"
-                 placeholder="Search name, tag or serial…"
-                 oninput="filterToolList(this.value)"/>
+                 placeholder="Search tool type…"
+                 oninput="filterTypeList(this.value)"/>
           <button class="btn btn-gold" style="font-size:.75rem;padding:6px 12px;flex-shrink:0;"
-                  onclick="openNewToolSheet()">+ Add</button>
+                  onclick="openNewTypeSheet()">+ Add Type</button>
         </div>
 
-        <!-- Category + status filter chips -->
-        <div style="display:flex;gap:6px;padding:8px 16px 0;overflow-x:auto;scrollbar-width:none;flex-shrink:0;">
-          <button class="filter-chip active" data-cat="" onclick="filterToolCat(this)">All</button>
-          <button class="filter-chip" data-cat="lifting_tackle" onclick="filterToolCat(this)">Lifting</button>
-          <button class="filter-chip" data-cat="instrument"     onclick="filterToolCat(this)">Instruments</button>
-          <button class="filter-chip" data-cat="ppe"            onclick="filterToolCat(this)">PPE</button>
-          <button class="filter-chip" data-cat="general_tool"   onclick="filterToolCat(this)">General</button>
-        </div>
-        <div style="display:flex;gap:6px;padding:6px 16px 8px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;border-bottom:1px solid var(--md-border);">
-          <button class="filter-chip active" data-stat=""               onclick="filterToolStat(this)">All</button>
-          <button class="filter-chip" data-stat="in_service"     onclick="filterToolStat(this)">In Service</button>
-          <button class="filter-chip" data-stat="out_of_service" onclick="filterToolStat(this)">Out of Service</button>
-          <button class="filter-chip" data-stat="condemned"      onclick="filterToolStat(this)">Condemned</button>
-          <button class="filter-chip" data-stat="lost"           onclick="filterToolStat(this)">Lost</button>
-          <button class="filter-chip" data-stat="__overdue__"    onclick="filterToolStat(this)">⚠ Overdue</button>
+        <!-- Category filter chips -->
+        <div style="display:flex;gap:6px;padding:8px 16px 10px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;border-bottom:1px solid var(--md-border);">
+          <button class="filter-chip active" data-cat="" onclick="filterTypeCat(this)">All</button>
+          <button class="filter-chip" data-cat="lifting_tackle" onclick="filterTypeCat(this)">Lifting</button>
+          <button class="filter-chip" data-cat="instrument"     onclick="filterTypeCat(this)">Instruments</button>
+          <button class="filter-chip" data-cat="ppe"            onclick="filterTypeCat(this)">PPE</button>
+          <button class="filter-chip" data-cat="general_tool"   onclick="filterTypeCat(this)">General</button>
         </div>
 
-        <div class="tool-list" id="toolList">
+        <div class="tool-list" id="typeList">
           <div class="loader"><div class="spin"></div> Loading…</div>
         </div>
       </div>
@@ -3464,7 +3497,7 @@ function showSubView(view) {
   $('subToolsBtn').style.color             = view === 'tools'     ? 'var(--md-gold)' : 'var(--md-muted)';
   if (view === 'employees') loadEmployees();
   if (view === 'assets')    loadAssetTree(currentParentId);
-  if (view === 'tools')     loadToolList();
+  if (view === 'tools')     loadTypeList();
 }
 
 // ─── [A] Dashboard ────────────────────────────────────────────────────────────
@@ -6530,7 +6563,7 @@ function confirmIncompatSelection() {
 
 // ─── End Safety module ────────────────────────────────────────────────────────
 
-// ─── Tools Register ────────────────────────────────────────────────────────────
+// ─── Tools Register v2 ─────────────────────────────────────────────────────────
 
 const TOOL_CAT_LABEL = {
   lifting_tackle: 'Lifting Tackle', instrument: 'Instrument',
@@ -6540,112 +6573,316 @@ const TOOL_CAT_ICON = {
   lifting_tackle: '⛓️', instrument: '🔬', ppe: '🦺', general_tool: '🔧',
 };
 
-let toolAll         = [];
-let toolFiltered    = [];
-let toolCatFilter   = '';
-let toolStatFilter  = '';   // '' = all statuses
-let currentTool     = null;
-let toolEmpCache    = [];   // reuse allEmployees if loaded, else fetch once
+// ── State ─────────────────────────────────────────────────────────────────────
 
-// ── List ─────────────────────────────────────────────────────────────────────
+let typeAll      = [];   // GET /api/tool-types — full list with counts
+let typeFiltered = [];
+let typeCatFilter = '';
+let currentType  = null; // type record open in type detail sheet
 
-async function loadToolList() {
-  const list = $('toolList');
+let currentTool  = null; // instance record open in instance detail sheet
+let toolEmpCache = [];   // reuse allEmployees when available
+
+// ── Type list ─────────────────────────────────────────────────────────────────
+
+async function loadTypeList() {
+  const list = $('typeList');
   list.innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
   try {
-    const params = toolStatFilter === '__overdue__'
-      ? '?overdue=1'
-      : toolStatFilter
-        ? `?status=${toolStatFilter}`
-        : '';   // no status filter — fetch all
-    const data = await apiFetch(`/tools${params}`);
-    toolAll = data.tools || [];
-    applyToolFilter();
+    const data = await apiFetch('/tool-types');
+    typeAll = data.tool_types || [];
+    applyTypeFilter();
   } catch (e) {
     list.innerHTML = `<div class="empty" style="color:var(--md-danger)">Error: ${escHtml(e.message)}</div>`;
   }
 }
 
-function applyToolFilter() {
+function applyTypeFilter() {
   const q = ($('toolSearch')?.value || '').toLowerCase().trim();
-  toolFiltered = toolAll.filter(t => {
-    const matchCat = !toolCatFilter || t.category === toolCatFilter;
-    const matchQ   = !q
-      || t.name.toLowerCase().includes(q)
-      || (t.tag_number    && t.tag_number.toLowerCase().includes(q))
-      || (t.serial_number && t.serial_number.toLowerCase().includes(q));
+  typeFiltered = typeAll.filter(t => {
+    const matchCat = !typeCatFilter || t.category === typeCatFilter;
+    const matchQ   = !q || t.name.toLowerCase().includes(q);
     return matchCat && matchQ;
   });
-  renderToolList();
+  renderTypeList();
 }
 
-function filterToolList(val) { applyToolFilter(); }
+function filterTypeList(val) { applyTypeFilter(); }
 
-function filterToolCat(btn) {
+function filterTypeCat(btn) {
   document.querySelectorAll('#subTools .filter-chip[data-cat]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  toolCatFilter = btn.dataset.cat;
-  applyToolFilter();
+  typeCatFilter = btn.dataset.cat;
+  applyTypeFilter();
 }
 
-function filterToolStat(btn) {
-  document.querySelectorAll('#subTools .filter-chip[data-stat]').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  toolStatFilter = btn.dataset.stat;
-  loadToolList();
-}
-
-function renderToolList() {
-  const list = $('toolList');
-  if (!toolFiltered.length) {
+function renderTypeList() {
+  const list = $('typeList');
+  if (!typeFiltered.length) {
     list.innerHTML = `<div class="empty">
-      <div class="empty-title">No tools found</div>
-      <div class="empty-sub">Tap Add to register a tool or instrument.</div>
+      <div class="empty-title">No tool types found</div>
+      <div class="empty-sub">Tap Add Type to create the first catalogue entry.</div>
     </div>`;
     return;
   }
-  const today = new Date().toISOString().slice(0, 10);
   list.innerHTML = '';
-  toolFiltered.forEach(t => {
-    const overdue = t.next_inspection_due && t.next_inspection_due < today;
-    const warn30  = t.next_inspection_due && !overdue &&
-      new Date(t.next_inspection_due) - new Date() < 30 * 86400 * 1000;
+  typeFiltered.forEach(t => {
+    const avail = t.available_count ?? 0;
+    const total = t.total_instances ?? 0;
+    const pillClass = avail > 0 ? 'has-stock' : 'no-stock';
+    const pillLabel = total === 0 ? 'No instances' : `${avail} / ${total} available`;
     const row = document.createElement('div');
-    row.className = 'tool-row';
-    row.onclick = () => openToolDetail(t.id);
+    row.className = 'type-row';
+    row.onclick = () => openTypeDetail(t.id);
     row.innerHTML = `
-      <div class="tool-row-icon ${t.category}">${TOOL_CAT_ICON[t.category] || '🔧'}</div>
-      <div class="tool-row-body">
-        <div class="tool-row-name">${escHtml(t.name)}</div>
-        <div class="tool-row-meta">
-          ${t.id}${t.tag_number ? ' · ' + escHtml(t.tag_number) : ''}
-          ${t.owner_name ? ' · ' + escHtml(t.owner_name) : ''}
+      <div class="type-row-icon ${t.category}">${TOOL_CAT_ICON[t.category] || '🔧'}</div>
+      <div class="type-row-body">
+        <div class="type-row-name">${escHtml(t.name)}</div>
+        <div class="type-row-meta">
+          ${t.id} · ${TOOL_CAT_LABEL[t.category] || t.category}
+          ${t.inspection_interval_days ? ' · ' + t.inspection_interval_days + 'd insp' : ''}
         </div>
-        ${overdue ? `<div class="tool-overdue-warn">⚠ Inspection overdue since ${t.next_inspection_due}</div>` : ''}
-        ${warn30  ? `<div class="tool-overdue-warn" style="color:var(--md-warning);">⚠ Inspection due ${t.next_inspection_due}</div>` : ''}
       </div>
-      <span class="tool-status-pill ${t.status}">${t.status.replace('_',' ')}</span>
+      <span class="type-avail-pill ${pillClass}">${pillLabel}</span>
     `;
     list.appendChild(row);
   });
 }
 
-// ── Detail ────────────────────────────────────────────────────────────────────
+// ── Type detail sheet ─────────────────────────────────────────────────────────
+
+async function openTypeDetail(typeId) {
+  $('typeDetailModal').classList.add('open');
+  // Reset tabs
+  document.querySelectorAll('#typeDetailModal .tool-detail-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#typeDetailModal .tool-detail-panel').forEach(p => p.classList.remove('active'));
+  $s('#typeDetailModal .tool-detail-tab')?.classList.add('active');
+  $('tytOverview')?.classList.add('active');
+
+  try {
+    const data = await apiFetch(`/tool-types/${encodeURIComponent(typeId)}`);
+    currentType = data.tool_type;
+    renderTypeDetail(data);
+  } catch (e) {
+    showToast('Failed to load type: ' + e.message, 'error');
+    closeTypeDetail();
+  }
+}
+
+function renderTypeDetail(data) {
+  const t = data.tool_type;
+  const instances = data.instances || [];
+
+  // Header
+  $('tydId').textContent  = t.id;
+  $('tydSub').textContent = TOOL_CAT_LABEL[t.category] || t.category;
+
+  // Overview tab
+  $('tydCategory').textContent = TOOL_CAT_LABEL[t.category] || t.category;
+  $('tydUnit').textContent     = t.quantity_unit || 'each';
+  $('tydTotal').textContent    = instances.length;
+  const avail = instances.filter(i => i.status === 'in_service' && i.ownership === 'site' && !i.is_out).length;
+  $('tydAvail').textContent    = avail;
+  $('tydInterval').textContent = t.inspection_interval_days ? `${t.inspection_interval_days} days` : '—';
+
+  $('tydWllRow').style.display  = t.category === 'lifting_tackle' ? '' : 'none';
+  $('tydWll').textContent       = t.wll_kg != null ? `${t.wll_kg} ${t.wll_unit}` : '—';
+  $('tydPpeRow').style.display  = t.category === 'ppe' ? '' : 'none';
+  $('tydPpeSpec').textContent   = t.ppe_spec || '—';
+  $('tydDescRow').textContent   = t.description || '';
+
+  // Instances tab
+  renderTypeInstances(instances, t);
+
+  // Action bar
+  const canWrite = actor && ['admin','safety_manager','maintenance_planner'].includes(actor.role);
+  $('typeActionBar').innerHTML = [
+    canWrite ? `<button class="btn btn-secondary" style="flex:1;font-size:.78rem;"
+      onclick="openEditTypeSheet()">Edit Type</button>` : '',
+    canWrite ? `<button class="btn btn-gold" style="flex:2;font-size:.78rem;"
+      onclick="openNewToolSheet()">+ Register Instance</button>` : '',
+  ].filter(Boolean).join('');
+}
+
+function renderTypeInstances(instances, type) {
+  const canWrite = actor && ['admin','safety_manager','maintenance_planner'].includes(actor.role);
+  const today = new Date().toISOString().slice(0, 10);
+  if (!instances.length) {
+    $('tydInstanceList').innerHTML = `<div class="empty">
+      <div class="empty-title">No instances registered</div>
+      <div class="empty-sub">Tap Register Instance to add the first physical item.</div>
+    </div>`;
+    return;
+  }
+  $('tydInstanceList').innerHTML = instances.map(i => {
+    const overdue = i.next_inspection_due && i.next_inspection_due < today;
+    const isOut   = i.is_out > 0;
+    return `
+      <div class="tool-row" onclick="openToolDetail('${escHtml(i.id)}')">
+        <div class="tool-row-body">
+          <div class="tool-row-name">${escHtml(i.id)}${i.tag_number ? ' · ' + escHtml(i.tag_number) : ''}</div>
+          <div class="tool-row-meta">
+            ${i.serial_number ? escHtml(i.serial_number) + ' · ' : ''}
+            ${i.location_label ? escHtml(i.location_label) : ''}
+            ${isOut ? ' · <span style="color:var(--md-warning)">Issued out</span>' : ''}
+            ${i.ownership === 'personal' && i.owner_name ? ' · ' + escHtml(i.owner_name) : ''}
+          </div>
+          ${overdue ? `<div class="tool-overdue-warn">⚠ Inspection overdue since ${i.next_inspection_due}</div>` : ''}
+        </div>
+        <span class="tool-status-pill ${i.status}">${i.status.replace(/_/g,' ')}</span>
+      </div>`;
+  }).join('');
+}
+
+function openTypeTab(panelId, btn) {
+  document.querySelectorAll('#typeDetailModal .tool-detail-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#typeDetailModal .tool-detail-tab').forEach(b => b.classList.remove('active'));
+  $(panelId)?.classList.add('active');
+  if (btn) btn.classList.add('active');
+
+  // Lazy-load SWPs tab
+  if (panelId === 'tytSWPs' && currentType) loadTypeSWPs(currentType.id);
+}
+
+async function loadTypeSWPs(typeId) {
+  $('tydSwpList').innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  try {
+    const data = await apiFetch(`/tool-types/${encodeURIComponent(typeId)}/swps`);
+    const swps = data.swps || [];
+    if (!swps.length) {
+      $('tydSwpList').innerHTML = '<div class="empty"><div class="empty-title">Not referenced in any SWP</div></div>';
+      return;
+    }
+    $('tydSwpList').innerHTML = swps.map(s => `
+      <div class="insp-row" style="display:flex;flex-direction:column;gap:3px;">
+        <div style="font-size:.88rem;color:var(--md-cream);">${escHtml(s.title)}</div>
+        <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);">${escHtml(s.id)}</div>
+      </div>`).join('');
+  } catch (e) {
+    $('tydSwpList').innerHTML = `<div class="empty" style="color:var(--md-danger)">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+function closeTypeDetail() {
+  $('typeDetailModal').classList.remove('open');
+  currentType = null;
+}
+
+// ── New Type sheet ────────────────────────────────────────────────────────────
+
+function openNewTypeSheet() {
+  ['ntyName','ntyDesc','ntyWll','ntyPpeSpec','ntyInterval'].forEach(id => {
+    const el = $(id); if (el) el.value = '';
+  });
+  $('ntyCategory').value = '';
+  $('ntyUnit').value     = 'each';
+  $('ntyWllUnit').value  = 'kg';
+  updateNewTypeFields();
+  $('newTypeModal').classList.add('open');
+}
+
+function closeNewTypeSheet() { $('newTypeModal').classList.remove('open'); }
+
+function updateNewTypeFields() {
+  const cat = $('ntyCategory').value;
+  $('ntyWllRow').style.display = cat === 'lifting_tackle' ? '' : 'none';
+  $('ntyPpeRow').style.display = cat === 'ppe'            ? '' : 'none';
+}
+
+async function submitNewType() {
+  const cat  = $('ntyCategory').value;
+  const name = $('ntyName').value.trim();
+
+  if (!cat)  { showToast('Category is required', 'error'); return; }
+  if (!name) { showToast('Name is required', 'error'); return; }
+  if (cat === 'lifting_tackle' && !$('ntyWll').value)
+    { showToast('Working Load Limit is required for lifting tackle', 'error'); return; }
+
+  const body = {
+    category:                 cat,
+    name,
+    description:              $('ntyDesc').value.trim()     || undefined,
+    wll_kg:                   $('ntyWll').value !== '' ? parseFloat($('ntyWll').value) : undefined,
+    wll_unit:                 $('ntyWllUnit').value,
+    ppe_spec:                 $('ntyPpeSpec').value.trim()  || undefined,
+    inspection_interval_days: $('ntyInterval').value ? parseInt($('ntyInterval').value) : undefined,
+    quantity_unit:            $('ntyUnit').value,
+  };
+
+  try {
+    const data = await apiFetch('/tool-types', { method: 'POST', body: JSON.stringify(body) });
+    closeNewTypeSheet();
+    showToast(`${data.tool_type.id} — ${name} registered`, 'success');
+    await loadTypeList();
+    // Auto-open the new type
+    openTypeDetail(data.tool_type.id);
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Edit Type sheet ───────────────────────────────────────────────────────────
+
+function openEditTypeSheet() {
+  const t = currentType; if (!t) return;
+  $('editTypeTitleSub').textContent = `${t.id}`;
+  $('etyName').value     = t.name || '';
+  $('etyDesc').value     = t.description || '';
+  $('etyWll').value      = t.wll_kg ?? '';
+  $('etyWllUnit').value  = t.wll_unit || 'kg';
+  $('etyPpeSpec').value  = t.ppe_spec || '';
+  $('etyInterval').value = t.inspection_interval_days ?? '';
+  $('etyUnit').value     = t.quantity_unit || 'each';
+
+  $('etyWllRow').style.display = t.category === 'lifting_tackle' ? '' : 'none';
+  $('etyPpeRow').style.display = t.category === 'ppe'            ? '' : 'none';
+
+  $('editTypeModal').classList.add('open');
+}
+
+function closeEditTypeSheet() { $('editTypeModal').classList.remove('open'); }
+
+async function submitEditType() {
+  const t = currentType; if (!t) return;
+  const name = $('etyName').value.trim();
+  if (!name) { showToast('Name is required', 'error'); return; }
+
+  const body = {
+    name,
+    description:              $('etyDesc').value.trim()     || null,
+    wll_kg:                   $('etyWll').value !== '' ? parseFloat($('etyWll').value) : null,
+    wll_unit:                 $('etyWllUnit').value,
+    ppe_spec:                 $('etyPpeSpec').value.trim()  || null,
+    inspection_interval_days: $('etyInterval').value ? parseInt($('etyInterval').value) : null,
+    quantity_unit:            $('etyUnit').value,
+  };
+
+  try {
+    const data = await apiFetch(`/tool-types/${encodeURIComponent(t.id)}`,
+      { method: 'PATCH', body: JSON.stringify(body) });
+    closeEditTypeSheet();
+    showToast('Type updated', 'success');
+    // Refresh type detail and list
+    const detail = await apiFetch(`/tool-types/${encodeURIComponent(t.id)}`);
+    currentType = detail.tool_type;
+    renderTypeDetail(detail);
+    await loadTypeList();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Instance detail ───────────────────────────────────────────────────────────
 
 async function openToolDetail(toolId) {
   $('toolDetailModal').classList.add('open');
-  // Reset tabs
-  document.querySelectorAll('.tool-detail-tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tool-detail-panel').forEach(p => p.classList.remove('active'));
-  $s('.tool-detail-tab')?.classList.add('active');
+  document.querySelectorAll('#toolDetailModal .tool-detail-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#toolDetailModal .tool-detail-panel').forEach(p => p.classList.remove('active'));
+  $s('#toolDetailModal .tool-detail-tab')?.classList.add('active');
   $('ttDetails')?.classList.add('active');
 
   try {
     const data = await apiFetch(`/tools/${encodeURIComponent(toolId)}`);
     currentTool = data.tool;
     renderToolDetail(data);
-  } catch(e) {
-    showToast('Failed to load tool: ' + e.message, 'error');
+  } catch (e) {
+    showToast('Failed to load instance: ' + e.message, 'error');
     closeToolDetail();
   }
 }
@@ -6657,13 +6894,12 @@ function renderToolDetail(data) {
   const today = new Date().toISOString().slice(0, 10);
 
   $('tdId').textContent  = t.id;
-  $('tdSub').textContent = t.name + (t.ownership === 'personal' && t.owner_name ? ` — ${t.owner_name}` : '');
+  $('tdSub').textContent = t.type_name + (t.ownership === 'personal' && t.owner_name ? ` — ${t.owner_name}` : '');
 
-  // Details tab
   $('tdCategory').textContent = TOOL_CAT_LABEL[t.category] || t.category;
 
   const overdue = t.next_inspection_due && t.next_inspection_due < today;
-  $('tdStatus').innerHTML = `<span class="tool-status-pill ${t.status}" style="font-size:.72rem;">${t.status.replace('_',' ')}</span>`
+  $('tdStatus').innerHTML = `<span class="tool-status-pill ${t.status}" style="font-size:.72rem;">${t.status.replace(/_/g,' ')}</span>`
     + (overdue ? ' <span style="color:var(--md-danger);font-family:var(--font-mono);font-size:.65rem;">INSP OVERDUE</span>' : '');
 
   $('tdTag').textContent      = t.tag_number    || '—';
@@ -6674,15 +6910,11 @@ function renderToolDetail(data) {
     ? `Personal — ${t.owner_name || t.owner_emp_id}` : 'Site-owned';
   $('tdLocation').textContent = t.location_label || '—';
 
-  // WLL — lifting tackle only
   $('tdWllRow').style.display = t.category === 'lifting_tackle' ? '' : 'none';
-  $('tdWll').textContent = t.wll_kg != null ? `${t.wll_kg} ${t.wll_unit}` : '—';
-
-  // PPE spec — ppe only
+  $('tdWll').textContent      = t.wll_kg != null ? `${t.wll_kg} ${t.wll_unit}` : '—';
   $('tdPpeRow').style.display = t.category === 'ppe' ? '' : 'none';
-  $('tdPpeSpec').textContent = t.ppe_spec || '—';
+  $('tdPpeSpec').textContent  = t.ppe_spec || '—';
 
-  // Inspection fields
   $('tdLastInsp').textContent  = t.last_inspected_at    ? t.last_inspected_at.slice(0,10)    : '—';
   $('tdNextDue').innerHTML     = t.next_inspection_due
     ? t.next_inspection_due.slice(0,10)
@@ -6726,7 +6958,7 @@ function renderToolDetail(data) {
         </div>`).join('')
     : '<div class="empty"><div class="empty-title">No open issues</div><div class="empty-sub">Tool is in stores.</div></div>';
 
-  // Action bar — role-gated
+  // Action bar
   const canWrite = actor && ['admin','safety_manager','maintenance_planner'].includes(actor.role);
   const canIssue = actor && ['admin','safety_manager','maintenance_planner','supervisor'].includes(actor.role);
   const isOut    = openIssues.length > 0;
@@ -6745,9 +6977,9 @@ function renderToolDetail(data) {
 }
 
 function openToolTab(panelId, btn) {
-  document.querySelectorAll('.tool-detail-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tool-detail-tab').forEach(b => b.classList.remove('active'));
-  $s(`#${panelId}`)?.classList.add('active');
+  document.querySelectorAll('#toolDetailModal .tool-detail-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('#toolDetailModal .tool-detail-tab').forEach(b => b.classList.remove('active'));
+  $(panelId)?.classList.add('active');
   if (btn) btn.classList.add('active');
 }
 
@@ -6756,20 +6988,23 @@ function closeToolDetail() {
   currentTool = null;
 }
 
-// ── New Tool sheet ────────────────────────────────────────────────────────────
+// ── New Instance sheet ────────────────────────────────────────────────────────
 
 function openNewToolSheet() {
-  ['ntName','ntTag','ntSerial','ntMfr','ntModel','ntOwnerSearch',
-   'ntWll','ntPpeSpec','ntCertRef','ntCertUrl','ntInspectorName'].forEach(id => {
+  const t = currentType; if (!t) return;
+  // Pre-fill type context
+  $('ntTypeId').value = t.id;
+  $('ntTypeSub').textContent = `${t.id} — ${t.name}`;
+  // Clear fields
+  ['ntTag','ntSerial','ntMfr','ntModel','ntOwnerSearch',
+   'ntCertRef','ntCertUrl','ntInspectorName'].forEach(id => {
     const el = $(id); if (el) el.value = '';
   });
-  $('ntCategory').value = '';
-  $('ntOwnership').value = 'site';
+  $('ntOwnership').value  = 'site';
   $('ntOwnerEmpId').value = '';
-  $('ntInterval').value = '';
-  $('ntNextDue').value = '';
-  $('ntLastInsp').value = '';
-  $('ntWllUnit').value = 'kg';
+  $('ntInterval').value   = t.inspection_interval_days || '';
+  $('ntNextDue').value    = '';
+  $('ntLastInsp').value   = '';
   updateNewToolFields();
   $('newToolModal').classList.add('open');
 }
@@ -6777,11 +7012,8 @@ function openNewToolSheet() {
 function closeNewToolSheet() { $('newToolModal').classList.remove('open'); }
 
 function updateNewToolFields() {
-  const cat = $('ntCategory').value;
   const own = $('ntOwnership').value;
-  $('ntWllRow').style.display    = cat === 'lifting_tackle' ? '' : 'none';
-  $('ntPpeRow').style.display    = cat === 'ppe'            ? '' : 'none';
-  $('ntOwnerRow').style.display  = own === 'personal'       ? '' : 'none';
+  $('ntOwnerRow').style.display = own === 'personal' ? '' : 'none';
 }
 
 async function searchToolOwner(q) {
@@ -6816,29 +7048,21 @@ async function ensureToolEmpCache() {
 }
 
 async function submitNewTool() {
-  const cat  = $('ntCategory').value;
-  const name = $('ntName').value.trim();
-  const own  = $('ntOwnership').value;
+  const typeId = $('ntTypeId').value;
+  if (!typeId) { showToast('No tool type selected', 'error'); return; }
 
-  if (!cat)  { showToast('Category is required', 'error'); return; }
-  if (!name) { showToast('Name is required', 'error'); return; }
+  const own = $('ntOwnership').value;
   if (own === 'personal' && !$('ntOwnerEmpId').value)
     { showToast('Select the owner employee', 'error'); return; }
-  if (cat === 'lifting_tackle' && !$('ntWll').value)
-    { showToast('Working Load Limit is required for lifting tackle', 'error'); return; }
 
   const body = {
-    category:                 cat,
-    name,
+    type_id:                  typeId,
     ownership:                own,
     owner_emp_id:             $('ntOwnerEmpId').value || undefined,
     tag_number:               $('ntTag').value.trim()           || undefined,
     serial_number:            $('ntSerial').value.trim()        || undefined,
     manufacturer:             $('ntMfr').value.trim()           || undefined,
     model:                    $('ntModel').value.trim()         || undefined,
-    wll_kg:                   $('ntWll').value !== '' ? parseFloat($('ntWll').value) : undefined,
-    wll_unit:                 $('ntWllUnit').value,
-    ppe_spec:                 $('ntPpeSpec').value.trim()       || undefined,
     inspection_interval_days: $('ntInterval').value ? parseInt($('ntInterval').value) : undefined,
     next_inspection_due:      $('ntNextDue').value              || undefined,
     last_inspected_at:        $('ntLastInsp').value             || undefined,
@@ -6850,21 +7074,20 @@ async function submitNewTool() {
   try {
     const data = await apiFetch('/tools', { method: 'POST', body: JSON.stringify(body) });
     closeNewToolSheet();
-    showToast(`${data.tool.id} — ${name} registered`, 'success');
-    // Reset status filter to All so the new tool is always visible
-    toolStatFilter = '';
-    document.querySelectorAll('#subTools .filter-chip[data-stat]').forEach(b => {
-      b.classList.toggle('active', b.dataset.stat === '');
-    });
-    await loadToolList();
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    showToast(`${data.tool.id} registered`, 'success');
+    // Refresh type detail to show new instance
+    const detail = await apiFetch(`/tool-types/${encodeURIComponent(typeId)}`);
+    currentType = detail.tool_type;
+    renderTypeDetail(detail);
+    await loadTypeList();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 // ── Inspection sheet ──────────────────────────────────────────────────────────
 
 function openInspectionSheet() {
   const t = currentTool; if (!t) return;
-  $('inspModalToolId').textContent = `${t.id} — ${t.name}`;
+  $('inspModalToolId').textContent = `${t.id} — ${t.type_name}`;
   $('inspDate').value = new Date().toISOString().slice(0,10);
   $('inspResult').value = 'pass';
   $('inspInspector').value = '';
@@ -6874,6 +7097,7 @@ function openInspectionSheet() {
   $('inspNextDue').value = t.inspection_interval_days
     ? new Date(Date.now() + t.inspection_interval_days * 86400000).toISOString().slice(0,10) : '';
   $('inspCondemnWarn').style.display = 'none';
+  $('inspSubmitBtn').style.background = '';
   $('inspResult').onchange = () => {
     $('inspCondemnWarn').style.display = $('inspResult').value === 'condemned' ? '' : 'none';
     $('inspSubmitBtn').style.background = $('inspResult').value === 'condemned'
@@ -6904,24 +7128,30 @@ async function submitInspection() {
   };
 
   try {
-    const data = await apiFetch(`/tools/${encodeURIComponent(t.id)}/inspections`,
+    await apiFetch(`/tools/${encodeURIComponent(t.id)}/inspections`,
       { method: 'POST', body: JSON.stringify(body) });
     closeInspectionSheet();
     const label = result === 'condemned' ? 'Tool condemned' : 'Inspection recorded';
     showToast(label, result === 'condemned' ? 'error' : 'success');
-    // Refresh detail
+    // Refresh instance detail
     const detail = await apiFetch(`/tools/${encodeURIComponent(t.id)}`);
     currentTool = detail.tool;
     renderToolDetail(detail);
-    await loadToolList();
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    // Refresh type detail instances list
+    if (currentType) {
+      const tdata = await apiFetch(`/tool-types/${encodeURIComponent(currentType.id)}`);
+      currentType = tdata.tool_type;
+      renderTypeInstances(tdata.instances || [], tdata.tool_type);
+    }
+    await loadTypeList();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 // ── Issue sheet ───────────────────────────────────────────────────────────────
 
 function openIssueSheet() {
   const t = currentTool; if (!t) return;
-  $('issueModalToolId').textContent = `${t.id} — ${t.name}`;
+  $('issueModalToolId').textContent = `${t.id} — ${t.type_name}`;
   $('issueEmpSearch').value = '';
   $('issueEmpId').value = '';
   $('issueEmpResults').style.display = 'none';
@@ -6934,17 +7164,17 @@ function closeIssueSheet() { $('issueModal').classList.remove('open'); }
 document.addEventListener('DOMContentLoaded', () => {
   const ies = $('issueEmpSearch');
   if (ies) ies.addEventListener('input', async function() {
-  await ensureToolEmpCache();
-  const q = this.value.toLowerCase().trim();
-  const res = $('issueEmpResults');
-  const matches = toolEmpCache.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
-  if (!q || !matches.length) { res.style.display = 'none'; return; }
-  res.style.display = 'block';
-  res.innerHTML = matches.map(e => `
-    <div style="padding:8px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--md-border);"
-         onclick="selectIssueEmp('${escHtml(e.id)}','${escHtml(e.name)}')">
-      ${escHtml(e.name)}
-    </div>`).join('');
+    await ensureToolEmpCache();
+    const q = this.value.toLowerCase().trim();
+    const res = $('issueEmpResults');
+    const matches = toolEmpCache.filter(e => e.name.toLowerCase().includes(q)).slice(0, 8);
+    if (!q || !matches.length) { res.style.display = 'none'; return; }
+    res.style.display = 'block';
+    res.innerHTML = matches.map(e => `
+      <div style="padding:8px 10px;cursor:pointer;font-size:.85rem;border-bottom:1px solid var(--md-border);"
+           onclick="selectIssueEmp('${escHtml(e.id)}','${escHtml(e.name)}')">
+        ${escHtml(e.name)}
+      </div>`).join('');
   });
 });
 
@@ -6969,15 +7199,20 @@ async function submitIssue() {
     const detail = await apiFetch(`/tools/${encodeURIComponent(t.id)}`);
     currentTool = detail.tool;
     renderToolDetail(detail);
-    await loadToolList();
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    if (currentType) {
+      const tdata = await apiFetch(`/tool-types/${encodeURIComponent(currentType.id)}`);
+      currentType = tdata.tool_type;
+      renderTypeInstances(tdata.instances || [], tdata.tool_type);
+    }
+    await loadTypeList();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 // ── Return sheet ──────────────────────────────────────────────────────────────
 
 function openReturnSheet() {
   const t = currentTool; if (!t) return;
-  $('returnModalToolId').textContent = `${t.id} — ${t.name}`;
+  $('returnModalToolId').textContent = `${t.id} — ${t.type_name}`;
   $('returnCondition').value = 'good';
   $('returnNotes').value = '';
   $('returnModal').classList.add('open');
@@ -6995,15 +7230,21 @@ async function submitReturn() {
     const data = await apiFetch(`/tools/${encodeURIComponent(t.id)}/return`,
       { method: 'POST', body: JSON.stringify(body) });
     closeReturnSheet();
-    showToast(`Tool returned — ${data.new_status.replace('_',' ')}`, 'success');
+    showToast(`Returned — ${(data.new_status || '').replace(/_/g,' ')}`, 'success');
     const detail = await apiFetch(`/tools/${encodeURIComponent(t.id)}`);
     currentTool = detail.tool;
     renderToolDetail(detail);
-    await loadToolList();
-  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+    if (currentType) {
+      const tdata = await apiFetch(`/tool-types/${encodeURIComponent(currentType.id)}`);
+      currentType = tdata.tool_type;
+      renderTypeInstances(tdata.instances || [], tdata.tool_type);
+    }
+    await loadTypeList();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
 }
 
 // ─── End Tools Register ────────────────────────────────────────────────────────
+
 
 
 // ─── Copy Subtree ─────────────────────────────────────────────────────────────
@@ -7350,10 +7591,85 @@ function showToast(msg, type = 'success') {
 
 
   <!-- ══════════════════════════════════════════════════════════════════════════
-       TOOLS REGISTER MODALS
+       TOOLS REGISTER MODALS v2
   ══════════════════════════════════════════════════════════════════════════════ -->
 
-  <!-- Tool detail bottom sheet -->
+  <!-- ── Type detail bottom sheet (z-index 60) ─────────────────────────────── -->
+  <div class="tool-type-modal" id="typeDetailModal">
+    <div class="tool-type-sheet">
+      <div class="tool-detail-header">
+        <div>
+          <div class="tool-detail-id" id="tydId">TTY-2026-001</div>
+          <div class="tool-detail-sub" id="tydSub">Tool type</div>
+        </div>
+        <button class="close-btn" onclick="closeTypeDetail()">✕</button>
+      </div>
+      <div class="tool-detail-tabs">
+        <button class="tool-detail-tab active" onclick="openTypeTab('tytOverview',this)">Overview</button>
+        <button class="tool-detail-tab" onclick="openTypeTab('tytInstances',this)">Instances</button>
+        <button class="tool-detail-tab" onclick="openTypeTab('tytSWPs',this)">Used in SWPs</button>
+      </div>
+      <div class="tool-detail-body">
+
+        <!-- Overview tab -->
+        <div class="tool-detail-panel active" id="tytOverview">
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Category</div>
+              <div class="inc-field-value" id="tydCategory">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Quantity Unit</div>
+              <div class="inc-field-value" id="tydUnit">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Total Instances</div>
+              <div class="inc-field-value" id="tydTotal">—</div>
+            </div>
+            <div class="inc-field">
+              <div class="inc-field-label">Available</div>
+              <div class="inc-field-value" id="tydAvail">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row" id="tydWllRow">
+            <div class="inc-field">
+              <div class="inc-field-label">Working Load Limit</div>
+              <div class="inc-field-value" id="tydWll">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row" id="tydPpeRow">
+            <div class="inc-field">
+              <div class="inc-field-label">PPE Specification</div>
+              <div class="inc-field-value" id="tydPpeSpec">—</div>
+            </div>
+          </div>
+          <div class="inc-field-row">
+            <div class="inc-field">
+              <div class="inc-field-label">Default Inspection Interval</div>
+              <div class="inc-field-value" id="tydInterval">—</div>
+            </div>
+          </div>
+          <div id="tydDescRow" style="margin-top:10px;font-size:.85rem;color:var(--md-muted);line-height:1.5;"></div>
+        </div>
+
+        <!-- Instances tab -->
+        <div class="tool-detail-panel" id="tytInstances">
+          <div id="tydInstanceList"><div class="loader"><div class="spin"></div></div></div>
+        </div>
+
+        <!-- Used in SWPs tab -->
+        <div class="tool-detail-panel" id="tytSWPs">
+          <div id="tydSwpList"><div class="loader"><div class="spin"></div></div></div>
+        </div>
+
+      </div>
+      <div class="tool-action-bar" id="typeActionBar"></div>
+    </div>
+  </div>
+
+  <!-- ── Instance detail bottom sheet (z-index 70) ─────────────────────────── -->
   <div class="tool-detail-modal" id="toolDetailModal">
     <div class="tool-detail-sheet">
       <div class="tool-detail-header">
@@ -7467,37 +7783,170 @@ function showToast(msg, type = 'success') {
     </div>
   </div>
 
-  <!-- New Tool sheet (z-index 70) -->
-  <div class="modal-backdrop" id="newToolModal" onclick="if(event.target===this)closeNewToolSheet()">
-    <div class="modal-sheet" style="max-height:92vh;">
+  <!-- ── Register Type sheet (z-index 70) ──────────────────────────────────── -->
+  <div class="modal-backdrop" id="newTypeModal" onclick="if(event.target===this)closeNewTypeSheet()">
+    <div class="modal-sheet" style="max-height:90vh;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
-        <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Register Tool</div>
-        <button class="close-btn" onclick="closeNewToolSheet()">✕</button>
+        <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Register Tool Type</div>
+        <button class="close-btn" onclick="closeNewTypeSheet()">✕</button>
       </div>
       <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
         <div class="inc-form">
           <div class="form-row">
             <div class="form-field">
               <label class="form-label">Category <span class="form-required">*</span></label>
-              <select class="form-input" id="ntCategory" onchange="updateNewToolFields()">
+              <select class="form-input" id="ntyCategory" onchange="updateNewTypeFields()">
                 <option value="">— select —</option>
-                <option value="lifting_tackle">Lifting Tackle</option>
-                <option value="instrument">Instrument</option>
-                <option value="ppe">PPE</option>
+                <option value="lifting_tackle">Lifting Tackle (DMR Reg 18)</option>
+                <option value="instrument">Instrument (GSR 6)</option>
+                <option value="ppe">PPE (GSR 9)</option>
                 <option value="general_tool">General Tool</option>
               </select>
             </div>
             <div class="form-field">
-              <label class="form-label">Ownership</label>
-              <select class="form-input" id="ntOwnership" onchange="updateNewToolFields()">
-                <option value="site">Site-owned</option>
-                <option value="personal">Personal (artisan)</option>
+              <label class="form-label">Quantity Unit</label>
+              <select class="form-input" id="ntyUnit">
+                <option value="each">each</option>
+                <option value="set">set</option>
+                <option value="m">m</option>
+                <option value="L">L</option>
+                <option value="kg">kg</option>
               </select>
             </div>
           </div>
           <div class="form-field">
             <label class="form-label">Name / Description <span class="form-required">*</span></label>
-            <input class="form-input" id="ntName" type="text" placeholder="e.g. Chain Block 2T"/>
+            <input class="form-input" id="ntyName" type="text" placeholder="e.g. Chain Block 2T, Hard Hat Class E"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Notes</label>
+            <textarea class="form-input" id="ntyDesc" rows="2" style="resize:vertical;" placeholder="Optional specification detail…"></textarea>
+          </div>
+
+          <!-- WLL — lifting tackle only -->
+          <div class="form-row" id="ntyWllRow" style="display:none;">
+            <div class="form-field">
+              <label class="form-label">Working Load Limit <span class="form-required">*</span></label>
+              <input class="form-input" id="ntyWll" type="number" min="0" step="0.1" placeholder="2000"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Unit</label>
+              <select class="form-input" id="ntyWllUnit">
+                <option value="kg">kg</option>
+                <option value="t">t</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- PPE spec — PPE only -->
+          <div class="form-field" id="ntyPpeRow" style="display:none;">
+            <label class="form-label">PPE Specification</label>
+            <input class="form-input" id="ntyPpeSpec" type="text" placeholder="e.g. SANS 1397 Class E Size L"/>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Default Inspection Interval (days)</label>
+            <input class="form-input" id="ntyInterval" type="number" min="1" placeholder="365 — applies to all instances of this type"/>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeNewTypeSheet()">Cancel</button>
+        <button class="btn btn-gold" style="flex:2;" onclick="submitNewType()">Register Type</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Edit Type sheet (z-index 70) ──────────────────────────────────────── -->
+  <div class="modal-backdrop" id="editTypeModal" onclick="if(event.target===this)closeEditTypeSheet()">
+    <div class="modal-sheet" style="max-height:90vh;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+        <div>
+          <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Edit Tool Type</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);margin-top:2px;" id="editTypeTitleSub"></div>
+        </div>
+        <button class="close-btn" onclick="closeEditTypeSheet()">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+        <div class="inc-form">
+          <div class="form-field">
+            <label class="form-label">Name / Description <span class="form-required">*</span></label>
+            <input class="form-input" id="etyName" type="text"/>
+          </div>
+          <div class="form-field">
+            <label class="form-label">Notes</label>
+            <textarea class="form-input" id="etyDesc" rows="2" style="resize:vertical;"></textarea>
+          </div>
+          <div class="form-row" id="etyWllRow" style="display:none;">
+            <div class="form-field">
+              <label class="form-label">Working Load Limit</label>
+              <input class="form-input" id="etyWll" type="number" min="0" step="0.1"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Unit</label>
+              <select class="form-input" id="etyWllUnit">
+                <option value="kg">kg</option>
+                <option value="t">t</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-field" id="etyPpeRow" style="display:none;">
+            <label class="form-label">PPE Specification</label>
+            <input class="form-input" id="etyPpeSpec" type="text"/>
+          </div>
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Inspection Interval (days)</label>
+              <input class="form-input" id="etyInterval" type="number" min="1"/>
+            </div>
+            <div class="form-field">
+              <label class="form-label">Quantity Unit</label>
+              <select class="form-input" id="etyUnit">
+                <option value="each">each</option>
+                <option value="set">set</option>
+                <option value="m">m</option>
+                <option value="L">L</option>
+                <option value="kg">kg</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
+        <button class="btn btn-secondary" style="flex:1;" onclick="closeEditTypeSheet()">Cancel</button>
+        <button class="btn btn-gold" style="flex:2;" onclick="submitEditType()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Register Instance sheet (z-index 80) ──────────────────────────────── -->
+  <div class="modal-backdrop" id="newToolModal" onclick="if(event.target===this)closeNewToolSheet()">
+    <div class="modal-sheet" style="max-height:92vh;">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
+        <div>
+          <div style="font-family:var(--font-brand);font-size:.95rem;color:var(--md-gold-lt);letter-spacing:.06em;">Register Instance</div>
+          <div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-gold-dk);margin-top:2px;" id="ntTypeSub"></div>
+        </div>
+        <button class="close-btn" onclick="closeNewToolSheet()">✕</button>
+      </div>
+      <div style="overflow-y:auto;padding:0 20px 20px;flex:1;">
+        <div class="inc-form">
+          <input type="hidden" id="ntTypeId"/>
+          <div class="form-field">
+            <label class="form-label">Ownership</label>
+            <select class="form-input" id="ntOwnership" onchange="updateNewToolFields()">
+              <option value="site">Site-owned (stores)</option>
+              <option value="personal">Personal (artisan)</option>
+            </select>
+          </div>
+          <!-- Personal owner — shown when ownership = personal -->
+          <div class="form-field" id="ntOwnerRow" style="display:none;">
+            <label class="form-label">Owner (employee) <span class="form-required">*</span></label>
+            <input class="form-input" id="ntOwnerSearch" type="text" placeholder="Search employee…"
+                   oninput="searchToolOwner(this.value)"/>
+            <div id="ntOwnerResults" style="background:var(--md-surface);border:1px solid var(--md-border);
+                 border-radius:var(--md-radius);margin-top:4px;display:none;"></div>
+            <input type="hidden" id="ntOwnerEmpId"/>
           </div>
           <div class="form-row">
             <div class="form-field">
@@ -7519,43 +7968,11 @@ function showToast(msg, type = 'success') {
               <input class="form-input" id="ntModel" type="text"/>
             </div>
           </div>
-
-          <!-- Personal owner — shown when ownership = personal -->
-          <div class="form-field" id="ntOwnerRow" style="display:none;">
-            <label class="form-label">Owner (employee) <span class="form-required">*</span></label>
-            <input class="form-input" id="ntOwnerSearch" type="text" placeholder="Search employee…"
-                   oninput="searchToolOwner(this.value)"/>
-            <div id="ntOwnerResults" style="background:var(--md-surface);border:1px solid var(--md-border);
-                 border-radius:var(--md-radius);margin-top:4px;display:none;"></div>
-            <input type="hidden" id="ntOwnerEmpId"/>
-          </div>
-
-          <!-- WLL — shown for lifting_tackle -->
-          <div class="form-row" id="ntWllRow" style="display:none;">
-            <div class="form-field">
-              <label class="form-label">Working Load Limit <span class="form-required">*</span></label>
-              <input class="form-input" id="ntWll" type="number" min="0" step="0.1" placeholder="2000"/>
-            </div>
-            <div class="form-field">
-              <label class="form-label">Unit</label>
-              <select class="form-input" id="ntWllUnit">
-                <option value="kg">kg</option>
-                <option value="t">t</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- PPE spec — shown for ppe -->
-          <div class="form-field" id="ntPpeRow" style="display:none;">
-            <label class="form-label">PPE Specification</label>
-            <input class="form-input" id="ntPpeSpec" type="text" placeholder="e.g. SANS 1397 Class E Size L"/>
-          </div>
-
-          <div class="inc-section-divider" style="margin-top:8px;">Inspection</div>
+          <div class="inc-section-divider" style="margin-top:8px;">Inspection at registration</div>
           <div class="form-row">
             <div class="form-field">
               <label class="form-label">Interval (days)</label>
-              <input class="form-input" id="ntInterval" type="number" min="1" placeholder="365"/>
+              <input class="form-input" id="ntInterval" type="number" min="1" placeholder="Inherits from type"/>
             </div>
             <div class="form-field">
               <label class="form-label">Next due</label>
@@ -7586,12 +8003,12 @@ function showToast(msg, type = 'success') {
       </div>
       <div style="padding:12px 20px;border-top:1px solid var(--md-border);display:flex;gap:8px;">
         <button class="btn btn-secondary" style="flex:1;" onclick="closeNewToolSheet()">Cancel</button>
-        <button class="btn btn-gold" style="flex:2;" onclick="submitNewTool()">Register Tool</button>
+        <button class="btn btn-gold" style="flex:2;" onclick="submitNewTool()">Register Instance</button>
       </div>
     </div>
   </div>
 
-  <!-- Record Inspection sheet (z-index 70) -->
+  <!-- ── Record Inspection sheet (z-index 80) ───────────────────────────────── -->
   <div class="modal-backdrop" id="inspectionModal" onclick="if(event.target===this)closeInspectionSheet()">
     <div class="modal-sheet" style="max-height:80vh;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
@@ -7654,7 +8071,7 @@ function showToast(msg, type = 'success') {
     </div>
   </div>
 
-  <!-- Issue Tool sheet (z-index 70) -->
+  <!-- ── Issue Tool sheet (z-index 80) ──────────────────────────────────────── -->
   <div class="modal-backdrop" id="issueModal" onclick="if(event.target===this)closeIssueSheet()">
     <div class="modal-sheet" style="max-height:70vh;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
@@ -7668,8 +8085,7 @@ function showToast(msg, type = 'success') {
         <div class="inc-form">
           <div class="form-field">
             <label class="form-label">Issue to (employee) <span class="form-required">*</span></label>
-            <input class="form-input" id="issueEmpSearch" type="text" placeholder="Search employee…"
-                   oninput="searchIssueEmp(this.value)"/>
+            <input class="form-input" id="issueEmpSearch" type="text" placeholder="Search employee…"/>
             <div id="issueEmpResults" style="background:var(--md-surface);border:1px solid var(--md-border);
                  border-radius:var(--md-radius);margin-top:4px;display:none;"></div>
             <input type="hidden" id="issueEmpId"/>
@@ -7687,7 +8103,7 @@ function showToast(msg, type = 'success') {
     </div>
   </div>
 
-  <!-- Return Tool sheet (z-index 70) -->
+  <!-- ── Return Tool sheet (z-index 80) ─────────────────────────────────────── -->
   <div class="modal-backdrop" id="returnModal" onclick="if(event.target===this)closeReturnSheet()">
     <div class="modal-sheet" style="max-height:70vh;">
       <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px 10px;">
