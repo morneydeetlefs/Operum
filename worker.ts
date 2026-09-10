@@ -1,6 +1,6 @@
 /**
  * Operum — Cloudflare Worker (worker.ts)
- * v1.3 — Register + Safety (Toolbox Talks, SWP, BBS, Incidents, Chemicals, Tools Register)
+ * v1.4 — Register + Safety (Toolbox Talks, SWP, BBS, Incidents, Chemicals, Tools Register v2)
  *
  * Endpoints
  * ─────────────────────────────────────────────────────────────────────────────
@@ -67,20 +67,25 @@
  * GET  /api/assets/:id/chemicals           chemicals stored at an asset node
  * GET  /api/public/chemicals/:id/sds       unauthenticated — redirect to sds_url (for QR codes)
  *
- * ── Tools Register ───────────────────────────────────────────────────────────
- * POST /api/tools                          register tool (LFT/INS/PPE/TLS-YYYY-NNN)
- * GET  /api/tools                          list (?category= &status= &ownership= &q= &overdue=1)
- * GET  /api/tools/:id                      single tool + inspection history + open issues
- * PATCH /api/tools/:id                     update tool fields (condemned tools locked)
- * POST /api/tools/:id/inspections          record inspection; condemned sets status permanently
- * POST /api/tools/:id/issue               ad hoc issue (single tool)
- * POST /api/tools/:id/return              return tool; damaged→out_of_service, lost→lost
- * GET  /api/tools/:id/swps               SWPs that require this tool
- * POST /api/swps/:id/issue-kit            batch issue all register resources on a SWP
+ * ── Tools Register v2 (two-level: types + instances) ────────────────────────
+ * POST /api/tool-types                     create tool type catalogue entry (TTY-YYYY-NNN)
+ * GET  /api/tool-types                     list types (?category= &q=) with available counts
+ * GET  /api/tool-types/:id                 single type + all instances
+ * PATCH /api/tool-types/:id                update type fields
+ * GET  /api/tool-types/:id/available       in-service, not-issued instances for issue picker
+ * GET  /api/tool-types/:id/swps            SWPs that require this tool type
+ * POST /api/tools                          register instance against a type (LFT/INS/PPE/TLS-YYYY-NNN)
+ * GET  /api/tools                          list instances (?category= &status= &type_id= &q= &overdue=1)
+ * GET  /api/tools/:id                      single instance + inspection history + open issues
+ * PATCH /api/tools/:id                     update instance fields (condemned locked)
+ * POST /api/tools/:id/inspections          record inspection; condemned permanent; auto next_due
+ * POST /api/tools/:id/issue               ad hoc issue of single instance
+ * POST /api/tools/:id/return              return; damaged→out_of_service, lost→lost
+ * POST /api/swps/:id/issue-kit            batch issue with assignments [{ref_id, tool_id}]
  * POST /api/swps/:id/acknowledge-resources artisan acknowledges freetext/personal items
- * GET  /api/swps/:id/resources            list SWP resource list
- * POST /api/swps/:id/resources            add resource to SWP
- * DELETE /api/swps/:id/resources/:rid     remove resource from SWP
+ * GET  /api/swps/:id/resources            SWP resource list with available_count per type
+ * POST /api/swps/:id/resources            add resource (ref_id → tool_types.id or chemicals.id)
+ * DELETE /api/swps/:id/resources/:rid     remove resource
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -2837,7 +2842,7 @@ export default {
 
 
     // ══════════════════════════════════════════════════════════════════════════
-    // TOOLS REGISTER
+    // TOOLS REGISTER v2 — two-level model (tool_types + tools instances)
     // DMR Regulation 18 (lifting tackle), GSR 6 (instruments), GSR 9 (PPE)
     // OHS Act 85 of 1993
     // ══════════════════════════════════════════════════════════════════════════
@@ -2845,22 +2850,21 @@ export default {
     const TOOLS_WRITE: Role[] = ['admin', 'safety_manager', 'maintenance_planner'];
     const TOOLS_ISSUE: Role[] = ['admin', 'safety_manager', 'maintenance_planner', 'supervisor'];
 
-    // ID prefix per category
-    const toolPrefix: Record<string, string> = {
+    const instancePrefix: Record<string, string> = {
       lifting_tackle: 'LFT',
       instrument:     'INS',
       ppe:            'PPE',
       general_tool:   'TLS',
     };
-    const validCategories = Object.keys(toolPrefix);
-    const validToolStatuses = ['in_service', 'out_of_service', 'condemned', 'lost'];
+    const validCategories    = Object.keys(instancePrefix);
+    const validToolStatuses  = ['in_service', 'out_of_service', 'condemned', 'lost'];
 
-    // Helper — check if a tool is issuable; returns error string or null
+    // Helper — check if a tool instance is issuable; returns error string or null
     async function toolIssueBlock(
       tool: Record<string, unknown>
     ): Promise<string | null> {
       if (['condemned', 'out_of_service', 'lost'].includes(tool.status as string))
-        return `Tool is ${tool.status} and cannot be issued`;
+        return `Tool is ${(tool.status as string).replace(/_/g, ' ')} and cannot be issued`;
       if (tool.next_inspection_due) {
         const today = new Date().toISOString().slice(0, 10);
         if ((tool.next_inspection_due as string) < today)
@@ -2869,46 +2873,188 @@ export default {
       return null;
     }
 
-    // ── POST /api/tools ───────────────────────────────────────────────────────
-    // Register a new tool. Generates category-specific ID (LFT/INS/PPE/TLS-YYYY-NNN).
-    // Body: { category, name, ownership?, owner_emp_id?, location_id?,
-    //         tag_number?, serial_number?, manufacturer?, model?,
-    //         wll_kg?, wll_unit?, inspection_interval_days?,
-    //         last_inspected_at?, next_inspection_due?, inspector_name?,
-    //         certificate_ref?, certificate_url?, ppe_spec?,
-    //         assigned_emp_id?, description? }
-    if (method === 'POST' && path === '/api/tools') {
+    // ── POST /api/tool-types ──────────────────────────────────────────────────
+    // Register a new tool type (catalogue entry).
+    // Body: { category, name, description?, wll_kg?, wll_unit?, ppe_spec?,
+    //         inspection_interval_days?, quantity_unit? }
+    if (method === 'POST' && path === '/api/tool-types') {
       if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
-
       const b = await req.json().catch(() => ({})) as Record<string, unknown>;
-
       if (!b.category || !validCategories.includes(b.category as string))
         return err('category must be one of: ' + validCategories.join(', '), 400, origin);
       if (!String(b.name ?? '').trim())
         return err('name is required', 400, origin);
 
+      const yr       = new Date().getFullYear().toString();
+      const countRow = await db.prepare(
+        `SELECT COUNT(*) AS n FROM tool_types WHERE id LIKE ?`
+      ).bind(`TTY-${yr}-%`).first<{ n: number }>();
+      const seq    = String((countRow?.n ?? 0) + 1).padStart(3, '0');
+      const typeId = `TTY-${yr}-${seq}`;
+      const now    = new Date().toISOString();
+
+      await db.prepare(`
+        INSERT INTO tool_types (
+          id, category, name, description, wll_kg, wll_unit,
+          ppe_spec, inspection_interval_days, quantity_unit, created_by, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        typeId,
+        b.category,
+        String(b.name).trim(),
+        String(b.description ?? '').trim() || null,
+        b.wll_kg != null ? Number(b.wll_kg) : null,
+        b.wll_unit ?? 'kg',
+        String(b.ppe_spec ?? '').trim() || null,
+        b.inspection_interval_days != null ? Number(b.inspection_interval_days) : null,
+        String(b.quantity_unit ?? 'each').trim(),
+        actor.sub, now,
+      ).run();
+
+      await log(db, actor.sub, 'create', `tool_type:${typeId}`, { name: b.name, category: b.category }, ip);
+      const toolType = await db.prepare('SELECT * FROM tool_types WHERE id = ?').bind(typeId).first();
+      return json({ tool_type: toolType }, 201, origin);
+    }
+
+    // ── GET /api/tool-types ───────────────────────────────────────────────────
+    // List tool types. ?category= &q= (name search)
+    // Also returns available instance count per type.
+    if (method === 'GET' && path === '/api/tool-types') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const catF = url.searchParams.get('category') || null;
+      const q    = url.searchParams.get('q')?.toLowerCase() || null;
+
+      const rows = await db.prepare(`
+        SELECT tt.*,
+               COUNT(CASE WHEN t.status = 'in_service' AND t.ownership = 'site' THEN 1 END) AS available_count,
+               COUNT(t.id) AS total_instances
+        FROM tool_types tt
+        LEFT JOIN tools t ON t.type_id = tt.id
+        WHERE (? IS NULL OR tt.category = ?)
+          AND (? IS NULL OR LOWER(tt.name) LIKE '%' || ? || '%')
+        GROUP BY tt.id
+        ORDER BY tt.category ASC, tt.name ASC
+      `).bind(catF, catF, q, q).all<Record<string, unknown>>();
+
+      return json({ tool_types: rows.results ?? [] }, 200, origin);
+    }
+
+    // ── Tool type single-record routes ────────────────────────────────────────
+    const toolTypeIdMatch = path.match(/^\/api\/tool-types\/([^\/]+)$/);
+
+    // ── GET /api/tool-types/:id ───────────────────────────────────────────────
+    // Returns type + all instances with their status.
+    if (toolTypeIdMatch && method === 'GET') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const typeId = decodeURIComponent(toolTypeIdMatch[1]);
+
+      const toolType = await db.prepare('SELECT * FROM tool_types WHERE id = ?')
+        .bind(typeId).first();
+      if (!toolType) return err('Tool type not found', 404, origin);
+
+      const instances = await db.prepare(`
+        SELECT t.*,
+               e.name  AS owner_name,
+               a.label AS location_label,
+               pe.name AS assigned_emp_name,
+               (SELECT COUNT(*) FROM tool_issues ti
+                WHERE ti.tool_id = t.id AND ti.returned_at IS NULL) AS is_out
+        FROM tools t
+        LEFT JOIN employees e  ON e.id  = t.owner_emp_id
+        LEFT JOIN assets    a  ON a.id  = t.location_id
+        LEFT JOIN employees pe ON pe.id = t.assigned_emp_id
+        WHERE t.type_id = ?
+        ORDER BY t.status ASC, t.tag_number ASC
+      `).bind(typeId).all<Record<string, unknown>>();
+
+      return json({ tool_type: toolType, instances: instances.results ?? [] }, 200, origin);
+    }
+
+    // ── PATCH /api/tool-types/:id ─────────────────────────────────────────────
+    if (toolTypeIdMatch && method === 'PATCH') {
+      if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
+      const typeId = decodeURIComponent(toolTypeIdMatch[1]);
+      const existing = await db.prepare('SELECT id FROM tool_types WHERE id = ?')
+        .bind(typeId).first();
+      if (!existing) return err('Tool type not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      const allowed = ['name','description','wll_kg','wll_unit','ppe_spec',
+                       'inspection_interval_days','quantity_unit'];
+      const sets: string[] = []; const vals: unknown[] = [];
+      for (const key of allowed) {
+        if (key in b) { sets.push(`${key} = ?`); vals.push(b[key] ?? null); }
+      }
+      if (!sets.length) return err('No valid fields to update', 400, origin);
+      vals.push(typeId);
+
+      await db.prepare(`UPDATE tool_types SET ${sets.join(', ')} WHERE id = ?`).bind(...vals).run();
+      await log(db, actor.sub, 'update', `tool_type:${typeId}`, { fields: sets }, ip);
+      const toolType = await db.prepare('SELECT * FROM tool_types WHERE id = ?').bind(typeId).first();
+      return json({ tool_type: toolType }, 200, origin);
+    }
+
+    // ── GET /api/tool-types/:id/available ─────────────────────────────────────
+    // List in-service, site-owned, not currently issued instances of a type.
+    // Used by the issue flow to let storeman pick which instance to issue.
+    const toolTypeAvailMatch = path.match(/^\/api\/tool-types\/([^\/]+)\/available$/);
+    if (toolTypeAvailMatch && method === 'GET') {
+      if (!can(actor.role, TOOLS_ISSUE)) return err('Forbidden', 403, origin);
+      const typeId = decodeURIComponent(toolTypeAvailMatch[1]);
+      const today  = new Date().toISOString().slice(0, 10);
+
+      const rows = await db.prepare(`
+        SELECT t.*, a.label AS location_label
+        FROM tools t
+        LEFT JOIN assets a ON a.id = t.location_id
+        WHERE t.type_id   = ?
+          AND t.status     = 'in_service'
+          AND t.ownership  = 'site'
+          AND (t.next_inspection_due IS NULL OR t.next_inspection_due >= ?)
+          AND NOT EXISTS (
+            SELECT 1 FROM tool_issues ti
+            WHERE ti.tool_id = t.id AND ti.returned_at IS NULL
+          )
+        ORDER BY t.tag_number ASC
+      `).bind(typeId, today).all<Record<string, unknown>>();
+
+      return json({ available: rows.results ?? [] }, 200, origin);
+    }
+
+    // ── POST /api/tools ───────────────────────────────────────────────────────
+    // Register a new tool instance against a type.
+    // Body: { type_id, tag_number?, serial_number?, manufacturer?, model?,
+    //         ownership?, owner_emp_id?, location_id?,
+    //         last_inspected_at?, next_inspection_due?, inspector_name?,
+    //         certificate_ref?, certificate_url?, assigned_emp_id? }
+    if (method === 'POST' && path === '/api/tools') {
+      if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
+      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+
+      if (!b.type_id) return err('type_id is required', 400, origin);
+      const toolType = await db.prepare('SELECT * FROM tool_types WHERE id = ?')
+        .bind(b.type_id).first<{ id: string; category: string; inspection_interval_days: number | null }>();
+      if (!toolType) return err('tool type not found', 404, origin);
+
       const ownership = b.ownership === 'personal' ? 'personal' : 'site';
       if (ownership === 'personal' && !b.owner_emp_id)
         return err('owner_emp_id is required for personal tools', 400, origin);
-      if (ownership === 'personal') {
-        const emp = await db.prepare('SELECT id FROM employees WHERE id = ?')
-          .bind(b.owner_emp_id).first();
+      if (b.owner_emp_id) {
+        const emp = await db.prepare('SELECT id FROM employees WHERE id = ?').bind(b.owner_emp_id).first();
         if (!emp) return err('owner_emp_id not found', 400, origin);
       }
       if (b.location_id) {
-        const loc = await db.prepare('SELECT id FROM assets WHERE id = ?')
-          .bind(b.location_id).first();
+        const loc = await db.prepare('SELECT id FROM assets WHERE id = ?').bind(b.location_id).first();
         if (!loc) return err('location_id not found', 400, origin);
       }
       if (b.assigned_emp_id) {
-        const emp = await db.prepare('SELECT id FROM employees WHERE id = ?')
-          .bind(b.assigned_emp_id).first();
+        const emp = await db.prepare('SELECT id FROM employees WHERE id = ?').bind(b.assigned_emp_id).first();
         if (!emp) return err('assigned_emp_id not found', 400, origin);
       }
 
-      // Generate category-specific ID
-      const prefix  = toolPrefix[b.category as string];
-      const yr      = new Date().getFullYear().toString();
+      // Generate instance ID from category prefix
+      const prefix   = instancePrefix[toolType.category];
+      const yr       = new Date().getFullYear().toString();
       const countRow = await db.prepare(
         `SELECT COUNT(*) AS n FROM tools WHERE id LIKE ?`
       ).bind(`${prefix}-${yr}-%`).first<{ n: number }>();
@@ -2916,82 +3062,91 @@ export default {
       const toolId = `${prefix}-${yr}-${seq}`;
       const now    = new Date().toISOString();
 
+      // Auto-calculate next_inspection_due from last_inspected_at + interval if not provided
+      let nextDue = String(b.next_inspection_due ?? '').trim() || null;
+      if (!nextDue && b.last_inspected_at && toolType.inspection_interval_days) {
+        const d = new Date(String(b.last_inspected_at));
+        d.setDate(d.getDate() + toolType.inspection_interval_days);
+        nextDue = d.toISOString().slice(0, 10);
+      }
+
       await db.prepare(`
         INSERT INTO tools (
-          id, category, name, description, tag_number, serial_number,
-          manufacturer, model, ownership, owner_emp_id, location_id,
-          wll_kg, wll_unit, last_inspected_at, next_inspection_due,
-          inspection_interval_days, inspector_name, certificate_ref, certificate_url,
-          ppe_spec, assigned_emp_id, status, created_by, created_at, updated_at
+          id, type_id, tag_number, serial_number, manufacturer, model,
+          ownership, owner_emp_id, location_id,
+          last_inspected_at, next_inspection_due, inspector_name,
+          certificate_ref, certificate_url, assigned_emp_id,
+          status, created_by, created_at, updated_at
         ) VALUES (
-          ?,?,?,?,?,?,
-          ?,?,?,?,?,
-          ?,?,?,?,
-          ?,?,?,?,
-          ?,?,?,?,?,?
+          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?,
+          'in_service', ?, ?, ?
         )
       `).bind(
         toolId,
-        b.category,
-        String(b.name).trim(),
-        String(b.description ?? '').trim() || null,
-        String(b.tag_number ?? '').trim()  || null,
+        b.type_id,
+        String(b.tag_number    ?? '').trim() || null,
         String(b.serial_number ?? '').trim() || null,
-        String(b.manufacturer ?? '').trim() || null,
-        String(b.model ?? '').trim()        || null,
+        String(b.manufacturer  ?? '').trim() || null,
+        String(b.model         ?? '').trim() || null,
         ownership,
-        ownership === 'personal' ? b.owner_emp_id : null,
-        b.location_id ?? null,
-        b.wll_kg != null ? Number(b.wll_kg) : null,
-        b.wll_unit ?? 'kg',
-        String(b.last_inspected_at ?? '').trim()      || null,
-        String(b.next_inspection_due ?? '').trim()    || null,
-        b.inspection_interval_days != null ? Number(b.inspection_interval_days) : null,
-        String(b.inspector_name ?? '').trim()         || null,
-        String(b.certificate_ref ?? '').trim()        || null,
-        String(b.certificate_url ?? '').trim()        || null,
-        String(b.ppe_spec ?? '').trim()               || null,
+        ownership === 'personal' ? (b.owner_emp_id ?? null) : null,
+        b.location_id    ?? null,
+        String(b.last_inspected_at   ?? '').trim() || null,
+        nextDue,
+        String(b.inspector_name      ?? '').trim() || null,
+        String(b.certificate_ref     ?? '').trim() || null,
+        String(b.certificate_url     ?? '').trim() || null,
         b.assigned_emp_id ?? null,
-        'in_service',
         actor.sub, now, now,
       ).run();
 
-      await log(db, actor.sub, 'create', `tool:${toolId}`, { name: b.name, category: b.category }, ip);
-      const tool = await db.prepare('SELECT * FROM tools WHERE id = ?').bind(toolId).first();
+      await log(db, actor.sub, 'create', `tool:${toolId}`,
+        { type_id: b.type_id, tag: b.tag_number }, ip);
+
+      const tool = await db.prepare(`
+        SELECT t.*, tt.name AS type_name, tt.category, tt.wll_kg, tt.wll_unit, tt.ppe_spec
+        FROM tools t JOIN tool_types tt ON tt.id = t.type_id WHERE t.id = ?
+      `).bind(toolId).first();
       return json({ tool }, 201, origin);
     }
 
     // ── GET /api/tools ────────────────────────────────────────────────────────
-    // List tools. Filters: ?category= &status= &ownership= &q= (name/tag/serial)
+    // List instances. ?category= &status= &ownership= &q= &overdue=1 &type_id=
     if (method === 'GET' && path === '/api/tools') {
       if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
-
-      const catF   = url.searchParams.get('category') || null;
-      const statF  = url.searchParams.get('status')   || 'in_service';
-      const ownF   = url.searchParams.get('ownership')|| null;
-      const q      = url.searchParams.get('q')?.toLowerCase() || null;
+      const catF    = url.searchParams.get('category') || null;
+      const statF   = url.searchParams.get('status')   || null;
+      const ownF    = url.searchParams.get('ownership') || null;
+      const typeF   = url.searchParams.get('type_id')  || null;
+      const q       = url.searchParams.get('q')?.toLowerCase() || null;
       const overdue = url.searchParams.get('overdue') === '1';
-      const today  = new Date().toISOString().slice(0, 10);
+      const today   = new Date().toISOString().slice(0, 10);
 
       const rows = await db.prepare(`
         SELECT t.*,
-               e.name AS owner_name,
+               tt.name AS type_name, tt.category, tt.wll_kg, tt.wll_unit, tt.ppe_spec,
+               e.name  AS owner_name,
                a.label AS location_label
         FROM tools t
+        JOIN tool_types tt ON tt.id = t.type_id
         LEFT JOIN employees e ON e.id = t.owner_emp_id
         LEFT JOIN assets    a ON a.id = t.location_id
-        WHERE (? IS NULL OR t.category = ?)
-          AND (? IS NULL OR t.status   = ?)
-          AND (? IS NULL OR t.ownership = ?)
+        WHERE (? IS NULL OR tt.category  = ?)
+          AND (? IS NULL OR t.status     = ?)
+          AND (? IS NULL OR t.ownership  = ?)
+          AND (? IS NULL OR t.type_id    = ?)
           AND (? = 0     OR (t.next_inspection_due IS NOT NULL AND t.next_inspection_due < ?))
           AND (? IS NULL OR (
-                LOWER(t.name) LIKE '%' || ? || '%'
+                LOWER(tt.name) LIKE '%' || ? || '%'
              OR (t.tag_number    IS NOT NULL AND LOWER(t.tag_number)    LIKE '%' || ? || '%')
              OR (t.serial_number IS NOT NULL AND LOWER(t.serial_number) LIKE '%' || ? || '%')
           ))
-        ORDER BY t.category ASC, t.name ASC
+        ORDER BY tt.name ASC, t.tag_number ASC
       `).bind(
-        catF, catF, statF, statF, ownF, ownF,
+        catF, catF, statF, statF, ownF, ownF, typeF, typeF,
         overdue ? 1 : 0, today,
         q, q, q, q,
       ).all<Record<string, unknown>>();
@@ -2999,7 +3154,7 @@ export default {
       return json({ tools: rows.results ?? [] }, 200, origin);
     }
 
-    // ── Tools single-record routes (:id) ──────────────────────────────────────
+    // ── Tool instance single-record routes (:id) ──────────────────────────────
     const toolIdMatch = path.match(/^\/api\/tools\/([^\/]+)$/);
 
     // ── GET /api/tools/:id ────────────────────────────────────────────────────
@@ -3009,10 +3164,13 @@ export default {
 
       const tool = await db.prepare(`
         SELECT t.*,
+               tt.name AS type_name, tt.category, tt.wll_kg, tt.wll_unit,
+               tt.ppe_spec, tt.inspection_interval_days,
                e.name  AS owner_name,
                a.label AS location_label,
                pe.name AS assigned_emp_name
         FROM tools t
+        JOIN tool_types tt ON tt.id = t.type_id
         LEFT JOIN employees e  ON e.id  = t.owner_emp_id
         LEFT JOIN assets    a  ON a.id  = t.location_id
         LEFT JOIN employees pe ON pe.id = t.assigned_emp_id
@@ -3020,18 +3178,16 @@ export default {
       `).bind(toolId).first<Record<string, unknown>>();
       if (!tool) return err('Tool not found', 404, origin);
 
-      // Recent inspection history (last 10)
       const inspections = await db.prepare(`
         SELECT * FROM tool_inspections WHERE tool_id = ?
         ORDER BY inspected_at DESC LIMIT 10
       `).bind(toolId).all<Record<string, unknown>>();
 
-      // Open issues (not yet returned)
       const openIssues = await db.prepare(`
         SELECT ti.*, e.name AS issued_to_name, s.title AS swp_title
         FROM tool_issues ti
-        LEFT JOIN employees e ON e.id  = ti.issued_to_emp
-        LEFT JOIN swps      s ON s.id  = ti.swp_id
+        LEFT JOIN employees e ON e.id = ti.issued_to_emp
+        LEFT JOIN swps      s ON s.id = ti.swp_id
         WHERE ti.tool_id = ? AND ti.returned_at IS NULL
         ORDER BY ti.issued_at DESC
       `).bind(toolId).all<Record<string, unknown>>();
@@ -3045,11 +3201,9 @@ export default {
     }
 
     // ── PATCH /api/tools/:id ──────────────────────────────────────────────────
-    // Update tool fields. condemned status cannot be changed once set.
     if (toolIdMatch && method === 'PATCH') {
       if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
       const toolId = decodeURIComponent(toolIdMatch[1]);
-
       const existing = await db.prepare('SELECT * FROM tools WHERE id = ?')
         .bind(toolId).first<Record<string, unknown>>();
       if (!existing) return err('Tool not found', 404, origin);
@@ -3057,20 +3211,17 @@ export default {
         return err('Condemned tools cannot be edited', 403, origin);
 
       const b = await req.json().catch(() => ({})) as Record<string, unknown>;
-
       if (b.status && !validToolStatuses.includes(b.status as string))
         return err('Invalid status', 400, origin);
       if (b.status === 'condemned')
         return err('Use the inspection endpoint to condemn a tool', 400, origin);
 
       const allowed = [
-        'name','description','tag_number','serial_number','manufacturer','model',
-        'location_id','wll_kg','wll_unit','last_inspected_at','next_inspection_due',
-        'inspection_interval_days','inspector_name','certificate_ref','certificate_url',
-        'ppe_spec','assigned_emp_id','status',
+        'tag_number','serial_number','manufacturer','model','location_id',
+        'last_inspected_at','next_inspection_due','inspector_name',
+        'certificate_ref','certificate_url','assigned_emp_id','status',
       ];
-      const sets: string[] = [];
-      const vals: unknown[] = [];
+      const sets: string[] = []; const vals: unknown[] = [];
       for (const key of allowed) {
         if (key in b) { sets.push(`${key} = ?`); vals.push(b[key] ?? null); }
       }
@@ -3084,77 +3235,73 @@ export default {
       return json({ tool }, 200, origin);
     }
 
-    // ── Tools sub-routes (/api/tools/:id/...) ─────────────────────────────────
+    // ── Tool instance sub-routes ──────────────────────────────────────────────
     const toolSubMatch = path.match(/^\/api\/tools\/([^\/]+)\/([^\/]+)$/);
 
     // ── POST /api/tools/:id/inspections ───────────────────────────────────────
-    // Record an inspection result. Automatically updates the parent tool row.
-    // If result = 'condemned': sets tools.status = 'condemned' permanently.
-    // If result = 'fail':      sets tools.status = 'out_of_service'.
-    // Body: { inspected_at, inspector_name, result, findings?,
-    //         certificate_ref?, certificate_url?, next_due? }
+    // condemned → tools.status = 'condemned' permanently (irreversible)
+    // fail      → tools.status = 'out_of_service'
     if (toolSubMatch && toolSubMatch[2] === 'inspections' && method === 'POST') {
       if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
       const toolId = decodeURIComponent(toolSubMatch[1]);
 
-      const tool = await db.prepare('SELECT * FROM tools WHERE id = ?')
-        .bind(toolId).first<Record<string, unknown>>();
+      const tool = await db.prepare(`
+        SELECT t.*, tt.inspection_interval_days
+        FROM tools t JOIN tool_types tt ON tt.id = t.type_id WHERE t.id = ?
+      `).bind(toolId).first<Record<string, unknown>>();
       if (!tool) return err('Tool not found', 404, origin);
 
       const b = await req.json().catch(() => ({})) as Record<string, unknown>;
-      if (!String(b.inspected_at ?? '').trim())
-        return err('inspected_at is required', 400, origin);
-      if (!String(b.inspector_name ?? '').trim())
-        return err('inspector_name is required', 400, origin);
-
+      if (!String(b.inspected_at    ?? '').trim()) return err('inspected_at is required', 400, origin);
+      if (!String(b.inspector_name  ?? '').trim()) return err('inspector_name is required', 400, origin);
       const validResults = ['pass', 'fail', 'condemned'];
       if (!b.result || !validResults.includes(b.result as string))
         return err('result must be: pass | fail | condemned', 400, origin);
 
-      const now = new Date().toISOString();
+      // Auto-calculate next_due from interval if not provided
+      let nextDue = String(b.next_due ?? '').trim() || null;
+      if (!nextDue && b.result === 'pass' && tool.inspection_interval_days) {
+        const d = new Date(String(b.inspected_at));
+        d.setDate(d.getDate() + (tool.inspection_interval_days as number));
+        nextDue = d.toISOString().slice(0, 10);
+      }
 
+      const now = new Date().toISOString();
       await db.prepare(`
         INSERT INTO tool_inspections (
           tool_id, inspected_at, inspector_name, result, findings,
           certificate_ref, certificate_url, next_due, recorded_by, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        toolId,
-        String(b.inspected_at).trim(),
-        String(b.inspector_name).trim(),
+        toolId, String(b.inspected_at).trim(), String(b.inspector_name).trim(),
         b.result,
-        String(b.findings ?? '').trim()        || null,
+        String(b.findings        ?? '').trim() || null,
         String(b.certificate_ref ?? '').trim() || null,
         String(b.certificate_url ?? '').trim() || null,
-        String(b.next_due ?? '').trim()        || null,
-        actor.sub, now,
+        nextDue, actor.sub, now,
       ).run();
 
-      // Update parent tool row — inspection metadata + status
       const newStatus =
-        b.result === 'condemned'  ? 'condemned' :
-        b.result === 'fail'       ? 'out_of_service' :
-        tool.status; // pass leaves status unchanged (may restore in_service via separate PATCH)
+        b.result === 'condemned' ? 'condemned' :
+        b.result === 'fail'      ? 'out_of_service' :
+        tool.status;
 
       await db.prepare(`
         UPDATE tools SET
-          last_inspected_at       = ?,
-          next_inspection_due     = ?,
-          inspector_name          = ?,
-          certificate_ref         = ?,
-          certificate_url         = ?,
-          status                  = ?,
-          updated_at              = ?
+          last_inspected_at   = ?,
+          next_inspection_due = ?,
+          inspector_name      = ?,
+          certificate_ref     = ?,
+          certificate_url     = ?,
+          status              = ?,
+          updated_at          = ?
         WHERE id = ?
       `).bind(
-        String(b.inspected_at).trim(),
-        String(b.next_due ?? '').trim() || null,
+        String(b.inspected_at).trim(), nextDue,
         String(b.inspector_name).trim(),
         String(b.certificate_ref ?? '').trim() || null,
         String(b.certificate_url ?? '').trim() || null,
-        newStatus,
-        now,
-        toolId,
+        newStatus, now, toolId,
       ).run();
 
       const action = b.result === 'condemned' ? 'condemn' : 'inspect';
@@ -3166,7 +3313,7 @@ export default {
     }
 
     // ── POST /api/tools/:id/issue ─────────────────────────────────────────────
-    // Issue a single tool (ad hoc path — not via SWP batch).
+    // Ad hoc issue of a single instance (not via SWP batch).
     // Body: { issued_to_emp, swp_id?, expected_return? }
     if (toolSubMatch && toolSubMatch[2] === 'issue' && method === 'POST') {
       if (!can(actor.role, TOOLS_ISSUE)) return err('Forbidden', 403, origin);
@@ -3179,7 +3326,6 @@ export default {
       const block = await toolIssueBlock(tool);
       if (block) return err(block, 409, origin);
 
-      // Check not already out on another job
       const alreadyOut = await db.prepare(
         `SELECT id FROM tool_issues WHERE tool_id = ? AND returned_at IS NULL`
       ).bind(toolId).first();
@@ -3187,7 +3333,6 @@ export default {
 
       const b = await req.json().catch(() => ({})) as Record<string, unknown>;
       if (!b.issued_to_emp) return err('issued_to_emp is required', 400, origin);
-
       const emp = await db.prepare('SELECT id FROM employees WHERE id = ?')
         .bind(b.issued_to_emp).first();
       if (!emp) return err('issued_to_emp not found', 400, origin);
@@ -3195,15 +3340,11 @@ export default {
       const now = new Date().toISOString();
       await db.prepare(`
         INSERT INTO tool_issues (
-          tool_id, swp_id, issued_to_emp, issued_by,
-          issued_at, expected_return
-        ) VALUES (?, ?, ?, ?, ?, ?)
+          tool_id, type_id, swp_id, issued_to_emp, issued_by, issued_at, expected_return
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        toolId,
-        b.swp_id ?? null,
-        b.issued_to_emp,
-        actor.sub,
-        now,
+        toolId, tool.type_id, b.swp_id ?? null,
+        b.issued_to_emp, actor.sub, now,
         String(b.expected_return ?? '').trim() || null,
       ).run();
 
@@ -3213,14 +3354,14 @@ export default {
     }
 
     // ── POST /api/tools/:id/return ────────────────────────────────────────────
-    // Return a tool. Records condition; damaged → out_of_service, lost → lost.
     // Body: { return_condition, return_notes? }
     if (toolSubMatch && toolSubMatch[2] === 'return' && method === 'POST') {
       if (!can(actor.role, TOOLS_ISSUE)) return err('Forbidden', 403, origin);
       const toolId = decodeURIComponent(toolSubMatch[1]);
 
       const issue = await db.prepare(
-        `SELECT * FROM tool_issues WHERE tool_id = ? AND returned_at IS NULL ORDER BY issued_at DESC LIMIT 1`
+        `SELECT * FROM tool_issues WHERE tool_id = ? AND returned_at IS NULL
+         ORDER BY issued_at DESC LIMIT 1`
       ).bind(toolId).first<Record<string, unknown>>();
       if (!issue) return err('No open issue found for this tool', 404, origin);
 
@@ -3232,20 +3373,12 @@ export default {
       const now = new Date().toISOString();
       await db.prepare(`
         UPDATE tool_issues SET
-          returned_at      = ?,
-          return_condition = ?,
-          return_notes     = ?,
-          returned_by      = ?
+          returned_at = ?, return_condition = ?, return_notes = ?, returned_by = ?
         WHERE id = ?
-      `).bind(
-        now,
-        b.return_condition,
+      `).bind(now, b.return_condition,
         String(b.return_notes ?? '').trim() || null,
-        actor.sub,
-        issue.id,
-      ).run();
+        actor.sub, issue.id).run();
 
-      // Update tool status based on return condition
       const newStatus =
         b.return_condition === 'damaged' ? 'out_of_service' :
         b.return_condition === 'lost'    ? 'lost' :
@@ -3259,87 +3392,99 @@ export default {
       return json({ returned: true, tool_id: toolId, new_status: newStatus }, 200, origin);
     }
 
-    // ── SWP batch issue (/api/swps/:id/issue-kit) ─────────────────────────────
-    // Issue all register-sourced resources on a SWP in one transaction.
-    // Returns per-tool result — blocked tools are listed with reason, not aborted.
-    // Body: { issued_to_emp, expected_return? }
+    // ── GET /api/tool-types/:id/swps ─────────────────────────────────────────
+    // SWPs that require this tool type.
+    const toolTypeSwpsMatch = path.match(/^\/api\/tool-types\/([^\/]+)\/swps$/);
+    if (toolTypeSwpsMatch && method === 'GET') {
+      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
+      const typeId = decodeURIComponent(toolTypeSwpsMatch[1]);
+
+      const rows = await db.prepare(`
+        SELECT s.id, s.title, s.status, s.asset_id,
+               a.label AS asset_label,
+               sr.resource_type, sr.description, sr.quantity, sr.unit
+        FROM swp_resources sr
+        JOIN swps   s ON s.id = sr.swp_id
+        JOIN assets a ON a.id = s.asset_id
+        WHERE sr.ref_id = ? AND sr.resource_source = 'register'
+        ORDER BY s.title ASC
+      `).bind(typeId).all<Record<string, unknown>>();
+
+      return json({ swps: rows.results ?? [] }, 200, origin);
+    }
+
+    // ── POST /api/swps/:id/issue-kit ──────────────────────────────────────────
+    // Batch issue. For each register resource on the SWP, caller provides
+    // the specific instance to issue: body.assignments = [{ ref_id, tool_id }]
+    // ref_id = tool_types.id from swp_resources; tool_id = chosen instance.
+    // Body: { issued_to_emp, expected_return?, assignments: [{ ref_id, tool_id }] }
     const swpIssueMatch = path.match(/^\/api\/swps\/([^\/]+)\/issue-kit$/);
     if (swpIssueMatch && method === 'POST') {
       if (!can(actor.role, TOOLS_ISSUE)) return err('Forbidden', 403, origin);
       const swpId = decodeURIComponent(swpIssueMatch[1]);
 
-      const swp = await db.prepare('SELECT * FROM swps WHERE id = ?').bind(swpId).first();
+      const swp = await db.prepare('SELECT id FROM swps WHERE id = ?').bind(swpId).first();
       if (!swp) return err('SWP not found', 404, origin);
 
-      const b = await req.json().catch(() => ({})) as Record<string, unknown>;
+      const b = await req.json().catch(() => ({})) as {
+        issued_to_emp?: string;
+        expected_return?: string;
+        assignments?: { ref_id: string; tool_id: string }[];
+      };
       if (!b.issued_to_emp) return err('issued_to_emp is required', 400, origin);
       const emp = await db.prepare('SELECT id FROM employees WHERE id = ?')
         .bind(b.issued_to_emp).first();
       if (!emp) return err('issued_to_emp not found', 400, origin);
-
-      // Fetch all register-sourced tool resources on this SWP
-      const resources = await db.prepare(`
-        SELECT sr.id AS resource_id, sr.ref_id AS tool_id, sr.description
-        FROM swp_resources sr
-        WHERE sr.swp_id = ?
-          AND sr.resource_source = 'register'
-          AND sr.resource_type IN ('tool','equipment','ppe')
-          AND sr.ref_id IS NOT NULL
-      `).bind(swpId).all<{ resource_id: number; tool_id: string; description: string }>();
+      if (!Array.isArray(b.assignments) || !b.assignments.length)
+        return err('assignments array is required', 400, origin);
 
       const now     = new Date().toISOString();
       const issued  : string[] = [];
-      const blocked : { tool_id: string; description: string; reason: string }[] = [];
+      const blocked : { tool_id: string; reason: string }[] = [];
 
-      for (const res of (resources.results ?? [])) {
+      for (const assignment of b.assignments) {
         const tool = await db.prepare('SELECT * FROM tools WHERE id = ?')
-          .bind(res.tool_id).first<Record<string, unknown>>();
+          .bind(assignment.tool_id).first<Record<string, unknown>>();
         if (!tool) {
-          blocked.push({ tool_id: res.tool_id, description: res.description,
-            reason: 'Tool not found in register' });
+          blocked.push({ tool_id: assignment.tool_id, reason: 'Tool instance not found' });
           continue;
         }
 
         const block = await toolIssueBlock(tool);
-        if (block) {
-          blocked.push({ tool_id: res.tool_id, description: res.description, reason: block });
-          continue;
-        }
+        if (block) { blocked.push({ tool_id: assignment.tool_id, reason: block }); continue; }
 
         const alreadyOut = await db.prepare(
           `SELECT id FROM tool_issues WHERE tool_id = ? AND returned_at IS NULL`
-        ).bind(res.tool_id).first();
+        ).bind(assignment.tool_id).first();
         if (alreadyOut) {
-          blocked.push({ tool_id: res.tool_id, description: res.description,
-            reason: 'Already issued — not yet returned' });
+          blocked.push({ tool_id: assignment.tool_id, reason: 'Already issued — not yet returned' });
           continue;
         }
 
         await db.prepare(`
           INSERT INTO tool_issues (
-            tool_id, swp_id, issued_to_emp, issued_by, issued_at, expected_return
-          ) VALUES (?, ?, ?, ?, ?, ?)
+            tool_id, type_id, swp_id, issued_to_emp, issued_by, issued_at, expected_return
+          ) VALUES (?, ?, ?, ?, ?, ?, ?)
         `).bind(
-          res.tool_id, swpId, b.issued_to_emp, actor.sub, now,
+          assignment.tool_id, tool.type_id, swpId,
+          b.issued_to_emp, actor.sub, now,
           String(b.expected_return ?? '').trim() || null,
         ).run();
 
-        issued.push(res.tool_id);
-        await log(db, actor.sub, 'issue', `tool:${res.tool_id}`,
+        issued.push(assignment.tool_id);
+        await log(db, actor.sub, 'issue', `tool:${assignment.tool_id}`,
           { swp_id: swpId, issued_to: b.issued_to_emp }, ip);
       }
 
       return json({ swp_id: swpId, issued, blocked }, 200, origin);
     }
 
-    // ── POST /api/swps/:id/acknowledge-resources ───────────────────────────────
-    // Artisan acknowledges freetext / personal resources on a SWP.
-    // Body: { resource_ids: number[] }   — array of swp_resources.id to acknowledge
+    // ── POST /api/swps/:id/acknowledge-resources ──────────────────────────────
+    // Body: { resource_ids: number[] }
     const swpAckMatch = path.match(/^\/api\/swps\/([^\/]+)\/acknowledge-resources$/);
     if (swpAckMatch && method === 'POST') {
       if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
       const swpId = decodeURIComponent(swpAckMatch[1]);
-
       const b = await req.json().catch(() => ({})) as { resource_ids?: number[] };
       if (!Array.isArray(b.resource_ids) || !b.resource_ids.length)
         return err('resource_ids array is required', 400, origin);
@@ -3352,34 +3497,42 @@ export default {
           WHERE id = ? AND swp_id = ?
         `).bind(actor.sub, now, rid, swpId).run();
       }
-
       await log(db, actor.sub, 'acknowledge', `swp:${swpId}/resources`,
         { count: b.resource_ids.length }, ip);
       return json({ acknowledged: b.resource_ids.length }, 200, origin);
     }
 
-    // ── SWP Resources CRUD (/api/swps/:id/resources) ──────────────────────────
+    // ── SWP Resources CRUD ────────────────────────────────────────────────────
     const swpResMatch = path.match(/^\/api\/swps\/([^\/]+)\/resources$/);
 
     // ── GET /api/swps/:id/resources ───────────────────────────────────────────
     if (swpResMatch && method === 'GET') {
       if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
       const swpId = decodeURIComponent(swpResMatch[1]);
-
       const swp = await db.prepare('SELECT id FROM swps WHERE id = ?').bind(swpId).first();
       if (!swp) return err('SWP not found', 404, origin);
 
       const rows = await db.prepare(`
         SELECT sr.*,
-               t.name           AS tool_name,
-               t.status         AS tool_status,
-               t.next_inspection_due,
-               c.common_name    AS chemical_name,
-               e.name           AS owner_name
+               tt.name     AS type_name,
+               tt.category AS tool_category,
+               -- available count for register tool resources
+               (SELECT COUNT(*) FROM tools ti
+                WHERE ti.type_id = sr.ref_id
+                  AND ti.status = 'in_service'
+                  AND ti.ownership = 'site'
+                  AND NOT EXISTS (
+                    SELECT 1 FROM tool_issues tis
+                    WHERE tis.tool_id = ti.id AND tis.returned_at IS NULL
+                  )
+               ) AS available_count,
+               c.common_name AS chemical_name,
+               c.physical_state
         FROM swp_resources sr
-        LEFT JOIN tools     t ON t.id = sr.ref_id AND sr.resource_type IN ('tool','equipment','ppe')
-        LEFT JOIN chemicals c ON c.id = sr.ref_id AND sr.resource_type = 'chemical'
-        LEFT JOIN employees e ON e.id = t.owner_emp_id
+        LEFT JOIN tool_types tt ON tt.id = sr.ref_id
+                               AND sr.resource_type IN ('tool','equipment','ppe')
+        LEFT JOIN chemicals  c  ON c.id  = sr.ref_id
+                               AND sr.resource_type = 'chemical'
         WHERE sr.swp_id = ?
         ORDER BY sr.sort_order ASC, sr.id ASC
       `).bind(swpId).all<Record<string, unknown>>();
@@ -3388,13 +3541,9 @@ export default {
     }
 
     // ── POST /api/swps/:id/resources ──────────────────────────────────────────
-    // Add a resource to a SWP.
-    // Body: { resource_type, description, resource_source?, ref_id?,
-    //         quantity?, unit?, sort_order? }
     if (swpResMatch && method === 'POST') {
       if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
       const swpId = decodeURIComponent(swpResMatch[1]);
-
       const swp = await db.prepare('SELECT id FROM swps WHERE id = ?').bind(swpId).first();
       if (!swp) return err('SWP not found', 404, origin);
 
@@ -3410,19 +3559,17 @@ export default {
       const source = (b.resource_source && validSources.includes(b.resource_source as string))
         ? b.resource_source as string : 'freetext';
 
-      // Validate ref_id when source is register or personal
       if (source !== 'freetext' && !b.ref_id)
         return err('ref_id is required for register and personal resources', 400, origin);
 
       if (source !== 'freetext' && b.ref_id) {
         if (b.resource_type === 'chemical') {
-          const chem = await db.prepare('SELECT id FROM chemicals WHERE id = ?')
-            .bind(b.ref_id).first();
+          const chem = await db.prepare('SELECT id FROM chemicals WHERE id = ?').bind(b.ref_id).first();
           if (!chem) return err('ref_id chemical not found', 400, origin);
         } else {
-          const tool = await db.prepare('SELECT id FROM tools WHERE id = ?')
-            .bind(b.ref_id).first();
-          if (!tool) return err('ref_id tool not found', 400, origin);
+          // ref_id must point to a tool_type
+          const tt = await db.prepare('SELECT id FROM tool_types WHERE id = ?').bind(b.ref_id).first();
+          if (!tt) return err('ref_id tool type not found', 400, origin);
         }
       }
 
@@ -3432,10 +3579,7 @@ export default {
           quantity, unit, ref_id, sort_order, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
-        swpId,
-        b.resource_type,
-        source,
-        String(b.description).trim(),
+        swpId, b.resource_type, source, String(b.description).trim(),
         b.quantity != null ? Number(b.quantity) : null,
         String(b.unit ?? '').trim() || null,
         b.ref_id ?? null,
@@ -3458,32 +3602,10 @@ export default {
       if (!can(actor.role, TOOLS_WRITE)) return err('Forbidden', 403, origin);
       const swpId = decodeURIComponent(swpResDelMatch[1]);
       const rid   = Number(swpResDelMatch[2]);
-
       await db.prepare(`DELETE FROM swp_resources WHERE id = ? AND swp_id = ?`)
         .bind(rid, swpId).run();
       await log(db, actor.sub, 'delete', `swp:${swpId}/resource:${rid}`, null, ip);
       return json({ deleted: rid }, 200, origin);
-    }
-
-    // ── GET /api/tools/:id/swps ───────────────────────────────────────────────
-    // Show all SWPs that require this tool — the "where is this tool needed" view.
-    const toolSwpsMatch = path.match(/^\/api\/tools\/([^\/]+)\/swps$/);
-    if (toolSwpsMatch && method === 'GET') {
-      if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
-      const toolId = decodeURIComponent(toolSwpsMatch[1]);
-
-      const rows = await db.prepare(`
-        SELECT s.id, s.title, s.status, s.asset_id,
-               a.label AS asset_label,
-               sr.resource_type, sr.description, sr.quantity, sr.unit
-        FROM swp_resources sr
-        JOIN swps   s ON s.id = sr.swp_id
-        JOIN assets a ON a.id = s.asset_id
-        WHERE sr.ref_id = ? AND sr.resource_source IN ('register','personal')
-        ORDER BY s.title ASC
-      `).bind(toolId).all<Record<string, unknown>>();
-
-      return json({ swps: rows.results ?? [] }, 200, origin);
     }
 
     // ── END TOOLS REGISTER ────────────────────────────────────────────────────

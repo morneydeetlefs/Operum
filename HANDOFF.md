@@ -16,8 +16,6 @@
 | Deploy command | `npx wrangler deploy --env=""` |
 | Push → deploy | `git push` triggers Cloudflare Pages auto-deploy |
 
-Git identity configured: `morneydeetlefs` / `morneydeetlefs@gmail.com`. Wrangler logged in via OAuth.
-
 ---
 
 ## Codebase conventions — never break these
@@ -27,20 +25,19 @@ Git identity configured: `morneydeetlefs` / `morneydeetlefs@gmail.com`. Wrangler
 - JWT payload accessed via `actor`, not `jwtPayload`
 - `$s(selector)` = `document.querySelector`; `$(id)` = `document.getElementById`
 - `escHtml(s)` = HTML escape helper
-- `allEmployees` = module-level cache for employees (shared across attendee picker and incident search)
-- `chemAll` / `chemFiltered` = module-level cache arrays for chemicals list
-- `toolAll` / `toolFiltered` = module-level cache arrays for tools list
-- `toolEmpCache` = employee cache for tool owner/issue search (reuses allEmployees if loaded)
-- `qsAllAssets` = flat asset cache used by copy-subtree picker (NOT used for search — search goes via Worker `?q=`)
-- Monolith stays monolithic — `app.html` will not be split into separate files
-- Read live files from GitHub before touching anything — never work from stale context
-- **Token in Git Bash:** always set `TOKEN="..."` (uppercase); node strings must be double-quoted so `$TOKEN` expands
+- `allEmployees` = module-level cache for employees
+- `chemAll` / `chemFiltered` = module-level cache for chemicals list
+- `toolAll` / `toolFiltered` = module-level cache for tools instances list
+- `qsAllAssets` = flat asset cache for copy-subtree picker only — search uses Worker `?q=`
+- Monolith stays monolithic — `app.html` will not be split
+- Read live files from GitHub before touching anything
+- **Token in Git Bash:** `TOKEN="..."` uppercase; node strings double-quoted
 
 ---
 
-## Human-readable label maps — always use these, never raw enum values
+## Human-readable label maps — always use, never raw enums
 
-All label maps live near `roleLabel()` in `app.html`:
+All defined near `roleLabel()` in `app.html`:
 
 ```js
 nodeTypeLabel(t)        // site→Site, plant→Plant, area→Area, zone→Zone, machine→Machine
@@ -54,16 +51,13 @@ resourceTypeLabel(t)    // tool→Tool, spare→Spare, equipment→Equipment, co
 roleLabel(role)         // admin→Admin, safety_manager→Safety Mgr, etc.
 ```
 
-Never use `.replace(/_/g,' ')` or `.charAt(0).toUpperCase()` as a substitute — always add to the map.
-
 ---
 
 ## Stack
 
-- **Frontend:** Vanilla HTML / CSS / JS, single file `app.html` (~7725 lines), no build step
-- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3494 lines)
-- **Database:** Cloudflare D1 (SQLite), single `operum_main` database
-- **Deploy:** Cloudflare Pages (frontend) + Wrangler (Worker)
+- **Frontend:** Vanilla HTML / CSS / JS, single `app.html` (~7725 lines), no build step
+- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3616 lines)
+- **Database:** Cloudflare D1 (SQLite), `operum_main`
 
 ---
 
@@ -72,70 +66,62 @@ Never use `.replace(/_/g,' ')` or `.charAt(0).toUpperCase()` as a substitute —
 ### Register module
 
 #### Employees + Asset Register
-Location hierarchy, asset register (hazards, criticality, isolation points, documents), persons register. All live.
+Full hierarchy, asset register, persons register. Asset search uses `GET /api/assets?q=` — full depth, no level limit. Results include "Browse ↓" button that navigates tree to asset's parent and highlights target row.
 
-**Asset search:** Uses `GET /api/assets?q=term` — searches full tree at any depth, no level limit. Results include a "Browse ↓" button that navigates the tree to the asset's parent and highlights the target row.
+#### Tools Register v2 — schema and Worker deployed this session, UI pending
 
-#### Tools Register — fully deployed
-Four tables: `tools`, `tool_inspections`, `tool_issues`, `swp_resources`.
+**Two-level model:**
+- `tool_types` — catalogue entries (TTY-YYYY-NNN). One per specification e.g. "Chain Block 2T". Linked to SWP resource lists.
+- `tools` — physical instances (LFT/INS/PPE/TLS-YYYY-NNN). One per physical item. Carries tag number, serial, inspection history, status.
 
-**Schema (schema_tools.sql applied):**
+**Schema migration applied:** `schema_tools_v2.sql`
+- Dropped v1 `tools`, `tool_inspections`, `tool_issues`, `swp_resources` (test data only)
+- Rebuilt all four tables plus new `tool_types` table
+- `swp_resources.ref_id` now points to `tool_types.id` (not `tools.id`)
+- `tool_issues` has `type_id` denormalised for reporting
+
+**Worker v1.4 endpoints:**
 ```
-tools            — LFT/INS/PPE/TLS-YYYY-NNN; ownership site|personal; status in_service|out_of_service|condemned|lost
-tool_inspections — full inspection history; condemned result sets tools.status permanently, irreversible
-tool_issues      — issue/return per job (swp_id) or employee onboarding (swp_id nullable)
-swp_resources    — resource list per SWP; resource_source freetext|register|personal; ref_id → tools.id or chemicals.id
+POST /api/tool-types                     create type (TTY-YYYY-NNN)
+GET  /api/tool-types                     list with available_count per type
+GET  /api/tool-types/:id                 type + all instances
+PATCH /api/tool-types/:id                update type fields
+GET  /api/tool-types/:id/available       in-service, not-issued instances (for issue picker)
+GET  /api/tool-types/:id/swps            SWPs requiring this type
+POST /api/tools                          register instance (auto-generates LFT/INS/PPE/TLS-YYYY-NNN)
+GET  /api/tools                          list instances (?category= &status= &type_id= &q= &overdue=1)
+GET  /api/tools/:id                      instance + inspection history + open issues
+PATCH /api/tools/:id                     update instance (condemned locked)
+POST /api/tools/:id/inspections          record inspection; condemned permanent; auto-calculates next_due
+POST /api/tools/:id/issue               ad hoc issue
+POST /api/tools/:id/return              return; damaged→out_of_service, lost→lost
+POST /api/swps/:id/issue-kit            batch issue with assignments [{ref_id, tool_id}]
+POST /api/swps/:id/acknowledge-resources artisan acknowledges freetext/personal items
+GET  /api/swps/:id/resources            resource list with available_count per type
+POST /api/swps/:id/resources            add resource (ref_id → tool_types.id or chemicals.id)
+DELETE /api/swps/:id/resources/:rid     remove resource
 ```
 
-**Worker v1.3 — thirteen endpoints (see full map below)**
+**Key design decisions locked:**
+- SWP resource list links to `tool_types` — "requires a 2T chain block", not a specific unit
+- At issue time storekeeper picks which instance from available list
+- `GET /api/tool-types/:id/available` returns in-service, site-owned, not-currently-issued instances
+- Condemned status set only via inspection endpoint — irreversible
+- Personal tools at instance level — visible in register, not issuable from stores
+- Auto-calculates `next_inspection_due` from `last_inspected_at` + `inspection_interval_days` when not provided
+- `tool_issues.swp_id` nullable — supports employee onboarding issue (no SWP context)
 
-**Issue hard-blocks:** `condemned`, `out_of_service`, `lost` status; overdue `next_inspection_due`; already issued and not returned.
-
-**Key design decisions:**
-- Category prefixes: LFT (lifting tackle / DMR Reg 18), INS (instruments / GSR 6), PPE (GSR 9), TLS (general tools)
-- Condemned status set only via inspection endpoint — PATCH cannot set it directly
-- Personal tools registered against artisan (owner_emp_id) — visible, not issuable from stores
-- Batch issue (`/issue-kit`) reports blocked tools individually, does not abort whole kit
-- `swp_resources.resource_source`: freetext (acknowledge only), register (issue flow), personal (no issue transaction)
-- Freetext resources (e.g. "19mm spanner") can be upgraded to register-linked for ad hoc issues
-- **Employee onboarding tool issue (future):** `tool_issues.swp_id` is nullable — no migration needed when employee section is enhanced
-
-**UI — under Register → Tools tab:**
-- Two filter rows: category (All/Lifting/Instruments/PPE/General) and status (All/In Service/Out of Service/Condemned/Lost/⚠ Overdue)
-- Status defaults to All — new tools always visible immediately after registration
-- After registering a new tool, filter resets to All automatically
-- List: coloured category icons, status pills, 30-day inspection warnings (amber), overdue (red)
-- Detail panel: three tabs — Details (all fields, WLL for lifting tackle, PPE spec for PPE, cert link), Inspections (history with result pills), Issues (open issues)
-- Action bar: Record Inspection, Issue (when in service and not out), Return (when issued) — condemned shows no Issue button ever
-- Register tool sheet: category/ownership toggles show/hide WLL, PPE spec, owner search dynamically
-- Inspection sheet: condemned result shows permanent warning; auto-calculates next due from interval; red submit button for condemned
-- Issue sheet: employee live search
-- Return sheet: condition selector; damaged→auto out_of_service, lost→auto lost
+**UI status:** NOT YET BUILT — next session priority. Current `app.html` still has v1 tools UI which will not work against v2 schema. Do not use the Tools tab until v2 UI is built.
 
 ---
 
 ### Safety module
 
-#### Toolbox Talks
-Schema, five endpoints, full UI. Shift filters, inline signing, attendee picker. Fully deployed.
-
-#### Safe Work Procedures (SWP)
-Full CRUD, steps (add/edit/delete/reorder), status workflow (draft → approved → archived). `swp_resources` schema deployed — **UI not yet built** (next priority).
-
-#### BBS Observations
-Field audit of SWP steps. List, new observation sheet, detail view. Fully deployed.
-
-#### Incident Investigation
-Four tables, twelve endpoints, full UI. OHSA Act 85/1993 / GAR Annexure 2 and Section 24 compliant. Fully deployed.
+#### Toolbox Talks, BBS, SWP, Incidents — all fully deployed (see previous HANDOFF for detail)
 
 #### Chemicals Register — fully deployed
-Two tables (`chemicals`, `asset_chemicals`), seven endpoints.
-- CHM-YYYY-NNN server-generated IDs
-- Bidirectional incompatibility sync — editing A's incompatible_with automatically updates B
-- Receipt endpoint blocks incompatible chemicals at delivery (409 with conflict list)
-- Public SDS route (`/api/public/chemicals/:id/sds`) — unauthenticated 302 redirect for QR codes
-- Edit sheet with incompatibles picker; archive/unarchive; all writes audit-logged distinctly
-- `GET /api/assets/:id/chemicals` — HIRA will query this for situational chemical context
+- CHM-YYYY-NNN, bidirectional incompatibility sync, receipt blocking, public SDS route
+- Edit sheet with incompatibles picker, archive/unarchive, all writes audit-logged
 
 ---
 
@@ -143,20 +129,20 @@ Two tables (`chemicals`, `asset_chemicals`), seven endpoints.
 
 ```
 AUTH
-  POST /api/auth/token             dev-only — remove before production
+  POST /api/auth/token             dev-only
   POST /api/login
 
 EMPLOYEES
   GET/POST /api/employees
   GET  /api/employees/:id
 
-LIBRARY (SWP suffix suggestions)
+LIBRARY
   GET  /api/library/suggest
   GET/POST /api/library
   PATCH/DELETE /api/library/:prefix
 
 ASSETS
-  GET  /api/assets                 ?parent_id= for tree nav; ?q= for full-depth search
+  GET  /api/assets                 ?parent_id= or ?q= (full-depth search)
   POST /api/assets
   GET/PATCH/DELETE /api/assets/:id
   GET  /api/assets/:id/subtree-count
@@ -188,7 +174,7 @@ BBS OBSERVATIONS
   GET/POST /api/bbs
   GET/PATCH /api/bbs/:id
 
-CONDITION MONITORING (DiagnosticWand — shared DB/Worker)
+CONDITION MONITORING
   GET  /api/assets/measurable/trends
   GET  /api/assets/measurable
   GET  /api/assets/:id/trend
@@ -215,77 +201,80 @@ CHEMICALS REGISTER
   POST/GET /api/chemicals
   GET/PATCH /api/chemicals/:id
   POST /api/chemicals/:id/receipt
-  GET  /api/public/chemicals/:id/sds    (unauthenticated — for QR codes)
+  GET  /api/assets/:id/chemicals
+  GET  /api/public/chemicals/:id/sds    (unauthenticated)
 
-TOOLS REGISTER
+TOOLS REGISTER v2
+  POST/GET /api/tool-types
+  GET/PATCH /api/tool-types/:id
+  GET  /api/tool-types/:id/available
+  GET  /api/tool-types/:id/swps
   POST/GET /api/tools
   GET/PATCH /api/tools/:id
   POST /api/tools/:id/inspections
   POST /api/tools/:id/issue
   POST /api/tools/:id/return
-  GET  /api/tools/:id/swps
 ```
 
 ---
 
 ## Key lessons learnt
 
-**Toast auto-dismiss (Sep 2026):** Never rely solely on `setTimeout`. Use CSS `@keyframes` animation as primary dismiss (compositor thread, unaffected by JS throttling). Force reflow with `void t.offsetWidth` before re-adding class so animation always restarts. Keep `setTimeout` only as cleanup fallback.
-
-**Stale UI pattern:** Every submit/save function must call the relevant list reload AND re-render the open detail panel after a successful API call. Two fixes applied: `submitEditStep` → `loadHubSWPs()`; `submitCommitteeReview` → `reloadIncidentsAll()`.
-
-**Filter default trap:** Never default a status filter to a specific value (`in_service`) — newly created records with that status may be invisible if the filter has drifted. Default to empty (all), add an explicit "All" chip, and reset the filter to All after any create action.
-
-**Token in Git Bash:** `TOKEN="..."` uppercase; node strings double-quoted for `$TOKEN` to expand. Lowercase `token` will not expand as `$TOKEN`.
+- **Toast auto-dismiss:** CSS `@keyframes` animation + `void t.offsetWidth` reflow. Never rely on `setTimeout` alone.
+- **Filter defaults:** Default to empty (all), not a specific status. Reset to All after create actions.
+- **Stale UI:** Every submit must reload the relevant list AND re-render the open detail panel.
+- **Token in Git Bash:** uppercase `TOKEN`, double-quoted node strings.
+- **Label maps:** Always use centralised label functions — never raw enum values or `.replace(/_/g,' ')`.
+- **Two-level tools model:** SWP links to type; issue flow resolves to instance at time of issue.
 
 ---
 
-## Next build sequence
+## Next session priorities
 
-### Immediate next
-1. **SWP Resources UI** — resource list tab inside SWP editor; freetext entry with type selector; register picker for tools and chemicals; personal tool acknowledgement; batch issue screen. Schema (`swp_resources`) already deployed.
-2. **BBS Observations detail view** — list and new-observation form exist; detail sheet not yet built.
+1. **Tools Register v2 UI** — rebuild Tools tab for two-level model:
+   - Type list view (with available instance count)
+   - Type detail panel (instances list, inspection status, SWPs requiring it)
+   - Register type sheet
+   - Register instance sheet (against a type)
+   - Instance detail (inspection history, open issues)
+   - Inspection, issue, return sheets
+   - SWP resources tab inside SWP editor
 
-### Design discussions in progress
-3. **Contractors / Services module** — full sub-contractor work order system. Answers confirmed:
-   - Full work order system (not just approved vendor list)
-   - PTW: contractors may hold their own PTW auth or be on a shared permit
-   - Persons: individual contractor workers need competency/training/RA proof on file
-   - Schema design not yet started — do before any code
+2. **SWP Resources UI** — resource list tab in SWP editor:
+   - Freetext entry with type selector
+   - Tool type picker (searches tool_types register)
+   - Chemical picker (searches chemicals register)
+   - Acknowledge flow for freetext/personal items
+   - Batch issue screen (type → pick available instance)
 
-### Longer horizon
-- HIRA — situational model; NOSA 3D matrix; threshold enforcement with criticality multiplier
-- PTW — last, highest complexity; requires safety officer input before design
-- Stores module — `chemical_receipts` table; full stock movement audit trail
-- Groq LLM — SWP draft generation (schema-compatible, no migration needed)
-- PDF export of Annexure 2
-- DiagnosticWand dashboard rewiring — broken, still calls old `/api/machines` endpoints
-- Versioned MSDS — public route live, QR generation UI deferred
-- Risk acceptance sign-off flow for HIRA threshold breaches
+3. **BBS Observations detail view** — list and form exist; detail sheet not built
+
+4. **Contractors / Services module** — schema design before any code:
+   - Full sub-contractor work order system
+   - Individual contractor worker competency records
+   - PTW relationship to be designed
 
 ---
 
 ## Useful commands
 
 ```bash
-# From /d/github/Operum
-
 # Deploy Worker
 npx wrangler deploy --env=""
 
-# Apply schema to live D1
-npx wrangler d1 execute operum_main --remote --file=schema.sql
+# Apply schema
+npx wrangler d1 execute operum_main --remote --file=schema_tools_v2.sql
 
-# Standard push (Pages auto-deploys)
+# Push frontend
 git add -A && git commit -m "..." && git push
 
-# Get JWT — run in browser DevTools console while logged in
+# Get JWT (browser DevTools console)
 sessionStorage.getItem('operum_token') || localStorage.getItem('operum_token')
 
-# Test endpoint — TOKEN uppercase, string double-quoted
+# Test endpoint
 TOKEN="eyJ..."
 node -e "
-fetch('https://operum-worker.morneydeetlefs.workers.dev/api/tools', {
+fetch('https://operum-worker.morneydeetlefs.workers.dev/api/tool-types', {
   headers: { 'Authorization': 'Bearer $TOKEN' }
 }).then(r => r.json()).then(d => console.log(JSON.stringify(d, null, 2)))
 "
@@ -295,13 +284,12 @@ fetch('https://operum-worker.morneydeetlefs.workers.dev/api/tools', {
 
 ## To start a fresh chat
 
-Download from the live repo and upload all three files:
+Download from GitHub (use Raw button) and upload all three:
 - `worker.ts` — https://github.com/morneydeetlefs/Operum/blob/main/worker.ts
 - `app.html` — https://github.com/morneydeetlefs/Operum/blob/main/app.html
 - `HANDOFF.md` — https://github.com/morneydeetlefs/Operum/blob/main/HANDOFF.md
 
 Then say:
-
 > "I'm Morney Deetlefs (MD Works, South Africa). I'm continuing work on Operum — a mobile-first industrial operations PWA. Stack: Cloudflare Workers (TypeScript), D1 (SQLite), Cloudflare Pages. Read the attached HANDOFF.md, worker.ts, and app.html before doing anything."
 
 ---
