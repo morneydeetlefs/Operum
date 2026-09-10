@@ -1,5 +1,5 @@
 # Operum — Session Handoff
-## Safety + Register Modules · September 2026
+## Safety + Register + Tools Modules · September 2026
 ### MD Works · Morney Deetlefs · South Africa
 
 ---
@@ -68,7 +68,7 @@ roleLabel(role)         // admin→Admin, safety_manager→Safety Mgr, etc.
 #### Employees + Asset Register
 Full hierarchy, asset register, persons register. Asset search uses `GET /api/assets?q=` — full depth, no level limit. Results include "Browse ↓" button that navigates tree to asset's parent and highlights target row.
 
-#### Tools Register v2 — schema and Worker deployed this session, UI pending
+#### Tools Register v2 — fully deployed (schema, Worker, UI)
 
 **Two-level model:**
 - `tool_types` — catalogue entries (TTY-YYYY-NNN). One per specification e.g. "Chain Block 2T". Linked to SWP resource lists.
@@ -111,13 +111,30 @@ DELETE /api/swps/:id/resources/:rid     remove resource
 - Auto-calculates `next_inspection_due` from `last_inspected_at` + `inspection_interval_days` when not provided
 - `tool_issues.swp_id` nullable — supports employee onboarding issue (no SWP context)
 
-**UI status:** NOT YET BUILT — next session priority. Current `app.html` still has v1 tools UI which will not work against v2 schema. Do not use the Tools tab until v2 UI is built.
+**UI status:** DEPLOYED (commit `ff800e8`). Two-level type/instance model live.
+- Type list with category chips and available-count pills
+- Type detail sheet (z-60): Overview / Instances / Used in SWPs tabs
+- Instance detail sheet (z-70): Details / Inspections / Issues tabs
+- Register Type and Edit Type sheets (z-70)
+- Register Instance sheet (z-80), pre-filled from parent type
+- Inspection, Issue, Return sheets (z-80)
 
 ---
 
 ### Safety module
 
 #### Toolbox Talks, BBS, SWP, Incidents — all fully deployed (see previous HANDOFF for detail)
+
+#### SWP Resources tab — deployed (commit `ff800e8`)
+- SWP editor now has three tabs: Steps | Resources | Approvals
+- Resources tab: tool/equipment/PPE picker (searches `tool_types` register), chemical picker (searches `chemicals` register with live incompatibility warning), freetext/consumable form
+- Incompatibility check: chemical picker highlights clashes against chemicals already on the resource list
+- Remove button per row (draft SWP + editor role only)
+- Deferred: kit issue flow, artisan acknowledge flow — endpoints live in Worker, UI placeholder only
+
+**Future tracked items on SWP:**
+- Team composition (minimum safe crew): `swp_team_roles` table — schema sketched, deferred until Contractors module
+- Spares list: `resource_type='spare'`, `resource_source='register'`, `ref_id` → future `spare_parts.id` — freetext spare works today via + Freetext path
 
 #### Chemicals Register — fully deployed
 - CHM-YYYY-NNN, bidirectional incompatibility sync, receipt blocking, public SDS route
@@ -231,28 +248,23 @@ TOOLS REGISTER v2
 
 ## Next session priorities
 
-1. **Tools Register v2 UI** — rebuild Tools tab for two-level model:
-   - Type list view (with available instance count)
-   - Type detail panel (instances list, inspection status, SWPs requiring it)
-   - Register type sheet
-   - Register instance sheet (against a type)
-   - Instance detail (inspection history, open issues)
-   - Inspection, issue, return sheets
-   - SWP resources tab inside SWP editor
+1. **BBS Observations detail view** — list and form exist; detail sheet not built
 
-2. **SWP Resources UI** — resource list tab in SWP editor:
-   - Freetext entry with type selector
-   - Tool type picker (searches tool_types register)
-   - Chemical picker (searches chemicals register)
-   - Acknowledge flow for freetext/personal items
-   - Batch issue screen (type → pick available instance)
-
-3. **BBS Observations detail view** — list and form exist; detail sheet not built
-
-4. **Contractors / Services module** — schema design before any code:
+2. **Contractors / Services module** — schema design before any code:
    - Full sub-contractor work order system
    - Individual contractor worker competency records
    - PTW relationship to be designed
+
+3. **SWP Resources — deferred flows** (kit issue + artisan acknowledge):
+   - `POST /api/swps/:id/issue-kit` — storekeeper batch issue sheet (type → pick available instance)
+   - `POST /api/swps/:id/acknowledge-resources` — artisan checklist on approved SWP
+
+4. **SWP Team composition tab** — minimum safe crew per SWP:
+   - Schema: `swp_team_roles` table (role_label, quantity, contractor flag, sort_order)
+   - UI: Team tab in SWP editor alongside Steps / Resources / Approvals
+   - Deferred until Contractors module exists to reference contractor roles properly
+
+5. **HIRA module** — depends on Chemicals Register (complete); can begin schema design
 
 ---
 
@@ -295,4 +307,4 @@ Then say:
 ---
 
 *✦ MD Works · Morney Deetlefs · South Africa*
-*Handoff updated: September 2026*
+*Handoff updated: September 2026 — commit ff800e8*
