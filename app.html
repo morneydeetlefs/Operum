@@ -2585,46 +2585,176 @@ body::before {
           <input class="form-input" id="swpTitleInput" type="text" placeholder="SWP title — e.g. Greasing NDE Bearing"/>
         </div>
 
-        <!-- Step list -->
-        <div style="flex:1;overflow-y:auto;padding:8px 20px 16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 10px;">
-            <div class="bbs-form-section-title" style="margin:0;">Steps</div>
-            <button class="btn btn-outline" id="swpAddStepBtn"
-                    style="font-size:.72rem;padding:4px 10px;"
-                    onclick="openAddStepForm()">+ Add Step</button>
-          </div>
+        <!-- Tab nav -->
+        <div style="display:flex;border-bottom:1px solid var(--md-border);padding:0 20px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;">
+          <button class="tool-detail-tab active" id="swpTabStepsBtn"     onclick="openSWPTab('swpTabSteps',this)">Steps</button>
+          <button class="tool-detail-tab"        id="swpTabResourcesBtn" onclick="openSWPTab('swpTabResources',this)">Resources</button>
+          <button class="tool-detail-tab"        id="swpTabApprovalsBtn" onclick="openSWPTab('swpTabApprovals',this)">Approvals</button>
+        </div>
 
-          <!-- Inline add-step form (hidden by default) -->
-          <div id="addStepForm" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);border-radius:var(--md-radius);padding:12px;margin-bottom:12px;">
-            <div class="bbs-form-section-title" style="margin-bottom:8px;">New Step</div>
-            <div class="form-field">
-              <label class="form-label">Description <span style="color:var(--md-danger)">*</span></label>
-              <textarea class="form-input" id="newStepDesc" rows="2"
-                        placeholder="What must be done — e.g. Apply grease gun to zerk fitting" style="resize:none;"></textarea>
+        <!-- Tab panels -->
+        <div style="flex:1;overflow-y:auto;">
+
+          <!-- Steps panel -->
+          <div id="swpTabSteps" style="padding:8px 20px 16px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0 10px;">
+              <div class="bbs-form-section-title" style="margin:0;">Steps</div>
+              <button class="btn btn-outline" id="swpAddStepBtn"
+                      style="font-size:.72rem;padding:4px 10px;"
+                      onclick="openAddStepForm()">+ Add Step</button>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <!-- Inline add-step form (hidden by default) -->
+            <div id="addStepForm" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);border-radius:var(--md-radius);padding:12px;margin-bottom:12px;">
+              <div class="bbs-form-section-title" style="margin-bottom:8px;">New Step</div>
               <div class="form-field">
-                <label class="form-label">Hazards <span style="color:var(--md-muted);font-size:.7rem;">(comma-separated)</span></label>
-                <input class="form-input" id="newStepHazards" type="text" placeholder="e.g. pinch point, hot surface"/>
+                <label class="form-label">Description <span style="color:var(--md-danger)">*</span></label>
+                <textarea class="form-input" id="newStepDesc" rows="2"
+                          placeholder="What must be done — e.g. Apply grease gun to zerk fitting" style="resize:none;"></textarea>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                <div class="form-field">
+                  <label class="form-label">Hazards <span style="color:var(--md-muted);font-size:.7rem;">(comma-separated)</span></label>
+                  <input class="form-input" id="newStepHazards" type="text" placeholder="e.g. pinch point, hot surface"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">PPE required <span style="color:var(--md-muted);font-size:.7rem;">(comma-separated)</span></label>
+                  <input class="form-input" id="newStepPPE" type="text" placeholder="e.g. gloves, safety glasses"/>
+                </div>
               </div>
               <div class="form-field">
-                <label class="form-label">PPE required <span style="color:var(--md-muted);font-size:.7rem;">(comma-separated)</span></label>
-                <input class="form-input" id="newStepPPE" type="text" placeholder="e.g. gloves, safety glasses"/>
+                <label class="form-label">Precautions <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
+                <input class="form-input" id="newStepPrecautions" type="text" placeholder="Any specific precaution note"/>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <button class="btn btn-outline" style="flex:1;font-size:.8rem;" onclick="cancelAddStep()">Cancel</button>
+                <button class="btn btn-gold"    style="flex:2;font-size:.8rem;" onclick="submitAddStep()">Add Step</button>
               </div>
             </div>
-            <div class="form-field">
-              <label class="form-label">Precautions <span style="color:var(--md-muted);font-size:.7rem;">(optional)</span></label>
-              <input class="form-input" id="newStepPrecautions" type="text" placeholder="Any specific precaution note"/>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:4px;">
-              <button class="btn btn-outline" style="flex:1;font-size:.8rem;" onclick="cancelAddStep()">Cancel</button>
-              <button class="btn btn-gold"    style="flex:2;font-size:.8rem;" onclick="submitAddStep()">Add Step</button>
+            <div class="swp-list" id="swpEditorStepList">
+              <div class="loader"><div class="spin"></div> Loading…</div>
             </div>
           </div>
 
-          <div class="swp-list" id="swpEditorStepList">
-            <div class="loader"><div class="spin"></div> Loading…</div>
+          <!-- Resources panel -->
+          <div id="swpTabResources" style="display:none;padding:8px 20px 80px;">
+
+            <!-- Add resource row — three entry paths -->
+            <div id="swpResAddBar" style="display:none;margin-bottom:14px;">
+              <div style="font-family:var(--font-mono);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;
+                          color:var(--md-gold-dk);margin-bottom:8px;">Add resource</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn btn-outline" style="font-size:.75rem;padding:5px 10px;"
+                        onclick="openResToolPicker()">+ Tool / Equipment / PPE</button>
+                <button class="btn btn-outline" style="font-size:.75rem;padding:5px 10px;"
+                        onclick="openResChemPicker()">+ Chemical</button>
+                <button class="btn btn-outline" style="font-size:.75rem;padding:5px 10px;"
+                        onclick="openResFreetext()">+ Freetext / Consumable</button>
+              </div>
+            </div>
+
+            <!-- Inline tool picker (hidden by default) -->
+            <div id="resToolPicker" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);
+                 border-radius:var(--md-radius);padding:12px;margin-bottom:12px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="bbs-form-section-title" style="margin:0;">Select Tool / Equipment / PPE</div>
+                <button class="close-btn" style="font-size:.8rem;" onclick="closeResToolPicker()">✕</button>
+              </div>
+              <input class="form-input" id="resToolSearch" type="search" placeholder="Search catalogue…"
+                     oninput="searchResToolTypes(this.value)"/>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+                <div class="form-field">
+                  <label class="form-label">Quantity</label>
+                  <input class="form-input" id="resToolQty" type="number" min="0.1" step="0.1" value="1"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Unit</label>
+                  <select class="form-input" id="resToolUnit">
+                    <option value="each">each</option><option value="set">set</option>
+                    <option value="m">m</option><option value="L">L</option><option value="kg">kg</option>
+                  </select>
+                </div>
+              </div>
+              <div id="resToolResults" style="margin-top:8px;max-height:180px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Inline chemical picker (hidden by default) -->
+            <div id="resChemPicker" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);
+                 border-radius:var(--md-radius);padding:12px;margin-bottom:12px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="bbs-form-section-title" style="margin:0;">Select Chemical</div>
+                <button class="close-btn" style="font-size:.8rem;" onclick="closeResChemPicker()">✕</button>
+              </div>
+              <input class="form-input" id="resChemSearch" type="search" placeholder="Search chemicals register…"
+                     oninput="searchResChems(this.value)"/>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+                <div class="form-field">
+                  <label class="form-label">Quantity</label>
+                  <input class="form-input" id="resChemQty" type="number" min="0.1" step="0.1" value="1"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Unit</label>
+                  <select class="form-input" id="resChemUnit">
+                    <option value="L">L</option><option value="kg">kg</option>
+                    <option value="ml">ml</option><option value="each">each</option>
+                  </select>
+                </div>
+              </div>
+              <div id="resChemResults" style="margin-top:8px;max-height:180px;overflow-y:auto;"></div>
+            </div>
+
+            <!-- Inline freetext form (hidden by default) -->
+            <div id="resFreetext" style="display:none;background:var(--md-panel);border:1px solid var(--md-border);
+                 border-radius:var(--md-radius);padding:12px;margin-bottom:12px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+                <div class="bbs-form-section-title" style="margin:0;">Freetext / Consumable</div>
+                <button class="close-btn" style="font-size:.8rem;" onclick="closeResFreetext()">✕</button>
+              </div>
+              <div class="form-field">
+                <label class="form-label">Description <span style="color:var(--md-danger)">*</span></label>
+                <input class="form-input" id="resFtDesc" type="text" placeholder="e.g. Grease gun, Rags, Cable ties"/>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <div class="form-field">
+                  <label class="form-label">Type</label>
+                  <select class="form-input" id="resFtType">
+                    <option value="tool">Tool</option>
+                    <option value="equipment">Equipment</option>
+                    <option value="consumable" selected>Consumable</option>
+                    <option value="spare">Spare</option>
+                  </select>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Qty</label>
+                  <input class="form-input" id="resFtQty" type="number" min="0.1" step="0.1" value="1"/>
+                </div>
+                <div class="form-field">
+                  <label class="form-label">Unit</label>
+                  <select class="form-input" id="resFtUnit">
+                    <option value="each">each</option><option value="set">set</option>
+                    <option value="L">L</option><option value="kg">kg</option><option value="m">m</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;margin-top:4px;">
+                <button class="btn btn-outline" style="flex:1;font-size:.8rem;" onclick="closeResFreetext()">Cancel</button>
+                <button class="btn btn-gold"    style="flex:2;font-size:.8rem;" onclick="submitResFreetext()">Add</button>
+              </div>
+            </div>
+
+            <!-- Resource list -->
+            <div id="swpResList">
+              <div class="loader"><div class="spin"></div></div>
+            </div>
+
           </div>
+
+          <!-- Approvals panel -->
+          <div id="swpTabApprovals" style="display:none;padding:16px 20px;">
+            <div id="swpApprovalContent">
+              <div class="loader"><div class="spin"></div></div>
+            </div>
+          </div>
+
         </div>
 
         <!-- Action bar -->
@@ -5095,14 +5225,17 @@ async function openSWPEditor(swpId) {
   _swpReturnAsset = selectedAsset || null;
   closeAssetDetail();
 
-  currentSWP      = null;
-  currentSWPSteps = [];
+  currentSWP          = null;
+  currentSWPSteps     = [];
+  currentSWPResources = [];
   $('swpEditorModal').classList.add('open');
   $('swpEditorTitle').textContent  = '—';
   $('swpEditorMeta').innerHTML     = '';
   $('swpEditorStepList').innerHTML = '<div class="loader"><div class="spin"></div> Loading…</div>';
   $('swpEditorActionBar').innerHTML = '';
   $('addStepForm').style.display   = 'none';
+  // Reset to Steps tab
+  openSWPTab('swpTabSteps', $('swpTabStepsBtn'));
 
   try {
     const data      = await apiFetch(`/swps/${encodeURIComponent(swpId)}`);
@@ -5233,6 +5366,337 @@ function renderSWPStepList() {
       </div>` : ''}`;
     list.appendChild(row);
   });
+}
+
+// ─── SWP tab switching ───────────────────────────────────────────────────────
+
+function openSWPTab(panelId, btn) {
+  // Toggle tab buttons
+  ['swpTabStepsBtn','swpTabResourcesBtn','swpTabApprovalsBtn'].forEach(id => {
+    const el = $(id); if (el) el.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+  // Toggle panels
+  ['swpTabSteps','swpTabResources','swpTabApprovals'].forEach(id => {
+    const el = $(id); if (el) el.style.display = 'none';
+  });
+  const panel = $(panelId);
+  if (panel) panel.style.display = '';
+  // Lazy-load Resources tab when first opened
+  if (panelId === 'swpTabResources' && currentSWP) loadSWPResources();
+  // Populate Approvals tab
+  if (panelId === 'swpTabApprovals' && currentSWP) renderSWPApprovals();
+}
+
+// ─── SWP Resources ────────────────────────────────────────────────────────────
+
+let currentSWPResources = [];   // resource list for currentSWP
+let _resToolSearchTimer = null;
+let _resChemSearchTimer = null;
+
+async function loadSWPResources() {
+  $('swpResList').innerHTML = '<div class="loader"><div class="spin"></div></div>';
+  try {
+    const data = await apiFetch(`/swps/${encodeURIComponent(currentSWP.id)}/resources`);
+    currentSWPResources = data.resources || [];
+    renderSWPResList();
+  } catch (e) {
+    $('swpResList').innerHTML = `<div style="color:var(--md-danger);font-size:.85rem;padding:12px 0;">Error: ${escHtml(e.message)}</div>`;
+  }
+}
+
+const RES_TYPE_LABEL = {
+  tool: 'Tool', spare: 'Spare', equipment: 'Equipment',
+  consumable: 'Consumable', chemical: 'Chemical',
+};
+const RES_TYPE_COLOUR = {
+  tool: 'var(--md-gold-dk)', spare: 'var(--md-muted)',
+  equipment: 'var(--md-info)', consumable: 'var(--md-muted)',
+  chemical: 'var(--md-danger)',
+};
+
+function renderSWPResList() {
+  const isDraft = currentSWP?.status === 'draft';
+  const canEdit = isDraft && actor && ['admin','safety_manager','maintenance_planner'].includes(actor.role);
+
+  // Show / hide add bar
+  const addBar = $('swpResAddBar');
+  if (addBar) addBar.style.display = canEdit ? '' : 'none';
+
+  const list = $('swpResList');
+  if (!currentSWPResources.length) {
+    list.innerHTML = `<div style="text-align:center;padding:24px 0;font-family:var(--font-mono);
+        font-size:.7rem;color:var(--md-muted);">
+      No resources added yet.${canEdit ? '<br>Use the buttons above to build the resource list.' : ''}
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = '';
+  currentSWPResources.forEach(r => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--md-border);';
+
+    // Type pill
+    const pill = document.createElement('span');
+    pill.style.cssText = `font-family:var(--font-mono);font-size:.5rem;letter-spacing:.07em;
+        text-transform:uppercase;padding:2px 7px;border-radius:20px;flex-shrink:0;margin-top:2px;
+        background:rgba(0,0,0,.2);border:1px solid ${RES_TYPE_COLOUR[r.resource_type] || 'var(--md-border)'};
+        color:${RES_TYPE_COLOUR[r.resource_type] || 'var(--md-muted)'};`;
+    pill.textContent = RES_TYPE_LABEL[r.resource_type] || r.resource_type;
+
+    // Body
+    const body = document.createElement('div');
+    body.style.cssText = 'flex:1;min-width:0;';
+
+    let descHtml = `<div style="font-size:.88rem;color:var(--md-cream);">${escHtml(r.description)}</div>`;
+
+    // Quantity line
+    if (r.quantity != null) {
+      descHtml += `<div style="font-family:var(--font-mono);font-size:.65rem;color:var(--md-muted);margin-top:2px;">
+        ${r.quantity} ${escHtml(r.unit || 'each')}
+        ${r.resource_source === 'register' && r.available_count != null
+          ? ` · <span style="color:${r.available_count > 0 ? 'var(--md-success)' : 'var(--md-danger)'};">${r.available_count} available</span>`
+          : ''}
+        ${r.resource_source === 'freetext' ? ' · <span style="color:var(--md-muted);">freetext</span>' : ''}
+      </div>`;
+    }
+
+    // Ref ID (tool type or chemical)
+    if (r.ref_id) {
+      descHtml += `<div style="font-family:var(--font-mono);font-size:.6rem;color:var(--md-gold-dk);margin-top:1px;">${escHtml(r.ref_id)}</div>`;
+    }
+
+    body.innerHTML = descHtml;
+
+    row.appendChild(pill);
+    row.appendChild(body);
+
+    // Remove button (draft + can edit)
+    if (canEdit) {
+      const rmBtn = document.createElement('button');
+      rmBtn.className = 'close-btn';
+      rmBtn.style.cssText = 'font-size:.7rem;margin-top:2px;flex-shrink:0;';
+      rmBtn.textContent = '✕';
+      rmBtn.onclick = () => removeResource(r.id);
+      row.appendChild(rmBtn);
+    }
+
+    list.appendChild(row);
+  });
+}
+
+async function removeResource(rid) {
+  if (!currentSWP) return;
+  try {
+    await apiFetch(`/swps/${encodeURIComponent(currentSWP.id)}/resources/${rid}`, { method: 'DELETE' });
+    currentSWPResources = currentSWPResources.filter(r => r.id !== rid);
+    renderSWPResList();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Tool picker ───────────────────────────────────────────────────────────────
+
+function openResToolPicker() {
+  closeResChemPicker(); closeResFreetext();
+  $('resToolSearch').value = '';
+  $('resToolResults').innerHTML = '';
+  $('resToolQty').value = '1';
+  $('resToolUnit').value = 'each';
+  $('resToolPicker').style.display = '';
+  $('resToolSearch').focus();
+}
+function closeResToolPicker() { $('resToolPicker').style.display = 'none'; }
+
+function searchResToolTypes(q) {
+  clearTimeout(_resToolSearchTimer);
+  _resToolSearchTimer = setTimeout(async () => {
+    const res = $('resToolResults');
+    if (!q.trim()) { res.innerHTML = ''; return; }
+    res.innerHTML = '<div style="font-size:.8rem;color:var(--md-muted);padding:6px 0;">Searching…</div>';
+    try {
+      const data = await apiFetch(`/tool-types?q=${encodeURIComponent(q)}`);
+      const types = data.tool_types || [];
+      if (!types.length) {
+        res.innerHTML = '<div style="font-size:.8rem;color:var(--md-muted);padding:6px 0;">No matches.</div>';
+        return;
+      }
+      res.innerHTML = '';
+      types.slice(0, 10).forEach(t => {
+        const avail = t.available_count ?? 0;
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--md-border);' +
+          'border-radius:var(--md-radius);margin-bottom:2px;background:var(--md-surface);';
+        item.innerHTML = `
+          <div style="font-size:.85rem;color:var(--md-cream);">${escHtml(t.name)}</div>
+          <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-muted);">
+            ${escHtml(t.id)} · ${TOOL_CAT_LABEL[t.category] || t.category}
+            · <span style="color:${avail > 0 ? 'var(--md-success)' : 'var(--md-danger)'};">${avail} available</span>
+          </div>`;
+        item.onclick = () => selectResTool(t);
+        res.appendChild(item);
+      });
+    } catch (e) {
+      res.innerHTML = `<div style="color:var(--md-danger);font-size:.8rem;">Error: ${escHtml(e.message)}</div>`;
+    }
+  }, 280);
+}
+
+async function selectResTool(t) {
+  const qty  = parseFloat($('resToolQty').value)  || 1;
+  const unit = $('resToolUnit').value || 'each';
+  try {
+    await apiFetch(`/swps/${encodeURIComponent(currentSWP.id)}/resources`, {
+      method: 'POST',
+      body: JSON.stringify({
+        resource_type:   t.category === 'ppe' ? 'tool' : 'tool',
+        resource_source: 'register',
+        description:     t.name,
+        quantity:        qty,
+        unit,
+        ref_id:          t.id,
+      }),
+    });
+    closeResToolPicker();
+    showToast(`${t.name} added`, 'success');
+    await loadSWPResources();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Chemical picker ───────────────────────────────────────────────────────────
+
+function openResChemPicker() {
+  closeResToolPicker(); closeResFreetext();
+  $('resChemSearch').value = '';
+  $('resChemResults').innerHTML = '';
+  $('resChemQty').value = '1';
+  $('resChemUnit').value = 'L';
+  $('resChemPicker').style.display = '';
+  $('resChemSearch').focus();
+}
+function closeResChemPicker() { $('resChemPicker').style.display = 'none'; }
+
+function searchResChems(q) {
+  clearTimeout(_resChemSearchTimer);
+  _resChemSearchTimer = setTimeout(async () => {
+    const res = $('resChemResults');
+    if (!q.trim()) { res.innerHTML = ''; return; }
+    res.innerHTML = '<div style="font-size:.8rem;color:var(--md-muted);padding:6px 0;">Searching…</div>';
+    try {
+      const data = await apiFetch(`/chemicals?q=${encodeURIComponent(q)}&status=active`);
+      const chems = data.chemicals || [];
+      if (!chems.length) {
+        res.innerHTML = '<div style="font-size:.8rem;color:var(--md-muted);padding:6px 0;">No matches.</div>';
+        return;
+      }
+      // Check for incompatibility warnings against already-added chemicals
+      const addedChemIds = currentSWPResources
+        .filter(r => r.resource_type === 'chemical' && r.ref_id)
+        .map(r => r.ref_id);
+
+      res.innerHTML = '';
+      chems.slice(0, 10).forEach(c => {
+        const incompatIds = JSON.parse(c.incompatible_with || '[]');
+        const clashes = incompatIds.filter(id => addedChemIds.includes(id));
+        const warn = clashes.length > 0;
+
+        const item = document.createElement('div');
+        item.style.cssText = 'padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--md-border);' +
+          `border-radius:var(--md-radius);margin-bottom:2px;background:var(--md-surface);` +
+          (warn ? 'border-left:3px solid var(--md-danger);' : '');
+        item.innerHTML = `
+          <div style="font-size:.85rem;color:var(--md-cream);">${escHtml(c.product_name)}</div>
+          <div style="font-family:var(--font-mono);font-size:.62rem;color:var(--md-muted);">
+            ${escHtml(c.id)} · ${escHtml(c.physical_state || '')}
+            ${warn ? '<span style="color:var(--md-danger);"> ⚠ Incompatible with added chemical</span>' : ''}
+          </div>`;
+        item.onclick = () => selectResChem(c, warn);
+        res.appendChild(item);
+      });
+    } catch (e) {
+      res.innerHTML = `<div style="color:var(--md-danger);font-size:.8rem;">Error: ${escHtml(e.message)}</div>`;
+    }
+  }, 280);
+}
+
+async function selectResChem(c, hasIncompatWarning) {
+  if (hasIncompatWarning) {
+    if (!confirm(`⚠ ${c.product_name} is incompatible with a chemical already on this resource list. Add anyway?`)) return;
+  }
+  const qty  = parseFloat($('resChemQty').value)  || 1;
+  const unit = $('resChemUnit').value || 'L';
+  try {
+    await apiFetch(`/swps/${encodeURIComponent(currentSWP.id)}/resources`, {
+      method: 'POST',
+      body: JSON.stringify({
+        resource_type:   'chemical',
+        resource_source: 'register',
+        description:     c.product_name,
+        quantity:        qty,
+        unit,
+        ref_id:          c.id,
+      }),
+    });
+    closeResChemPicker();
+    showToast(`${c.product_name} added`, 'success');
+    await loadSWPResources();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Freetext form ─────────────────────────────────────────────────────────────
+
+function openResFreetext() {
+  closeResToolPicker(); closeResChemPicker();
+  $('resFtDesc').value = '';
+  $('resFtType').value = 'consumable';
+  $('resFtQty').value  = '1';
+  $('resFtUnit').value = 'each';
+  $('resFreetext').style.display = '';
+  $('resFtDesc').focus();
+}
+function closeResFreetext() { $('resFreetext').style.display = 'none'; }
+
+async function submitResFreetext() {
+  const desc = $('resFtDesc').value.trim();
+  if (!desc) { showToast('Description is required', 'error'); return; }
+  const qty  = parseFloat($('resFtQty').value) || 1;
+  const unit = $('resFtUnit').value || 'each';
+  try {
+    await apiFetch(`/swps/${encodeURIComponent(currentSWP.id)}/resources`, {
+      method: 'POST',
+      body: JSON.stringify({
+        resource_type:   $('resFtType').value,
+        resource_source: 'freetext',
+        description:     desc,
+        quantity:        qty,
+        unit,
+      }),
+    });
+    closeResFreetext();
+    showToast(`${desc} added`, 'success');
+    await loadSWPResources();
+  } catch (e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+// ── Approvals tab content ─────────────────────────────────────────────────────
+
+function renderSWPApprovals() {
+  const s = currentSWP;
+  if (!s) return;
+  const el = $('swpApprovalContent');
+  const rows = [
+    { label: 'Status',      value: `<span class="swp-status-pill ${s.status}">${swpStatusLabel(s.status)}</span>` },
+    { label: 'Approved by', value: escHtml(s.approved_by_name || '—') },
+    { label: 'Approved at', value: s.approved_at ? s.approved_at.slice(0,10) : '—' },
+    { label: 'Created',     value: s.created_at  ? s.created_at.slice(0,10)  : '—' },
+  ];
+  el.innerHTML = rows.map(r => `
+    <div class="inc-field-row" style="margin-bottom:8px;">
+      <div class="inc-field">
+        <div class="inc-field-label">${r.label}</div>
+        <div class="inc-field-value">${r.value}</div>
+      </div>
+    </div>`).join('');
 }
 
 function closeSWPEditor() {
