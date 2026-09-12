@@ -1,6 +1,6 @@
 /**
  * Operum — Cloudflare Worker (worker.ts)
- * v1.4 — Register + Safety (Toolbox Talks, SWP, BBS, Incidents, Chemicals, Tools Register v2)
+ * v1.5 — Org model: trades, areas, scope enforcement, SWP approval chain
  *
  * Endpoints
  * ─────────────────────────────────────────────────────────────────────────────
@@ -39,6 +39,10 @@
  * POST /api/assets/:id/swps               create SWP on an asset
  * GET  /api/swps/:id                      single SWP with full step list
  * PATCH /api/swps/:id                     update SWP title / status
+ * POST /api/swps/:id/submit               artisan submits draft for review
+ * POST /api/swps/:id/review               supervisor passes up to area manager
+ * POST /api/swps/:id/advance              area manager submits to safety
+ * POST /api/swps/:id/approve              safety manager approves or rejects
  * POST /api/swps/:id/steps                add a step to a SWP
  * PATCH /api/swps/:id/steps/:stepId       update a step
  * DELETE /api/swps/:id/steps/:stepId      remove a step
@@ -97,8 +101,9 @@ export interface Env {
 }
 
 type Role =
-  | 'admin' | 'safety_manager' | 'maintenance_planner'
-  | 'supervisor' | 'artisan' | 'operator' | 'read_only' | 'contractor';
+  | 'admin' | 'safety_manager' | 'area_manager' | 'maintenance_planner'
+  | 'supervisor' | 'artisan' | 'operator' | 'read_only'
+  | 'contractor_supervisor' | 'contractor_artisan';
 
 type NodeType =
   | 'site' | 'plant' | 'system' | 'machine'
@@ -110,7 +115,7 @@ interface JWTPayload {
   sub: string;        // employee id
   name: string;
   role: Role;
-  areas: string[];    // area scoping
+  trade_ids: string[]; // trade disciplines — [] for admin/safety_manager
   exp: number;
 }
 
@@ -193,11 +198,100 @@ function err(msg: string, status = 400, corsOrigin = '*'): Response {
 // ─── Role checks ─────────────────────────────────────────────────────────────
 
 const ADMIN_ROLES: Role[]      = ['admin'];
-const MANAGE_ROLES: Role[]     = ['admin', 'supervisor', 'safety_manager', 'maintenance_planner'];
-const READ_ROLES: Role[]       = ['admin', 'safety_manager', 'maintenance_planner', 'supervisor', 'artisan', 'operator', 'read_only'];
+const MANAGE_ROLES: Role[]     = ['admin', 'area_manager', 'supervisor', 'safety_manager', 'maintenance_planner'];
+const READ_ROLES: Role[]       = ['admin', 'safety_manager', 'area_manager', 'maintenance_planner',
+                                  'supervisor', 'artisan', 'operator', 'read_only',
+                                  'contractor_supervisor', 'contractor_artisan'];
+// SWP chain role sets
+const SWP_CREATE_ROLES: Role[] = ['admin', 'safety_manager', 'area_manager', 'supervisor',
+                                  'artisan', 'contractor_supervisor', 'contractor_artisan'];
+const SWP_REVIEW_ROLES: Role[] = ['admin', 'safety_manager', 'area_manager', 'supervisor', 'contractor_supervisor'];
+const SWP_APPROVE_ROLES: Role[]= ['admin', 'safety_manager'];
 
 function can(role: Role, allowed: Role[]): boolean {
   return allowed.includes(role);
+}
+
+// ─── Scope check helper ───────────────────────────────────────────────────────
+// Returns true if the employee has permanent OR active temporary scope over
+// the given asset.  Admin and Safety Manager are site-wide — always true.
+// Uses the materialised path column on assets for fast geographic checks.
+// Functional areas are matched via area_filters rows.
+//
+// elevation_id (out): if access was granted via a temporary elevation,
+// the elevation row id is returned so callers can record it in swp_status_history.
+//
+async function employeeHasScope(
+  db: D1Database,
+  empId: string,
+  role: Role,
+  assetId: string,
+  now: string,
+): Promise<{ allowed: boolean; elevation_id: number | null }> {
+  // Admin and Safety Manager are site-wide — no scope rows needed.
+  if (role === 'admin' || role === 'safety_manager') {
+    return { allowed: true, elevation_id: null };
+  }
+
+  // Fetch asset path for geographic checks.
+  const asset = await db.prepare(
+    `SELECT id, node_type, machine_type, criticality, path FROM assets WHERE id = ?`
+  ).bind(assetId).first<{ id: string; node_type: string; machine_type: string | null; criticality: string; path: string | null }>();
+  if (!asset) return { allowed: false, elevation_id: null };
+
+  // ── Permanent scope ──────────────────────────────────────────────────────
+  // Geographic areas: area_nodes rows where asset path starts with node path.
+  const { results: geoAreas } = await db.prepare(`
+    SELECT ea.area_id
+    FROM employee_areas ea
+    JOIN area_nodes an ON an.area_id = ea.area_id
+    JOIN assets an_asset ON an_asset.id = an.asset_node_id
+    WHERE ea.emp_id = ?
+      AND (
+        (an.include_descendants = 1 AND ? LIKE (an_asset.path || '%'))
+        OR an.asset_node_id = ?
+      )
+  `).bind(empId, asset.path ?? asset.id, assetId).all<{ area_id: string }>();
+
+  if (geoAreas.length > 0) return { allowed: true, elevation_id: null };
+
+  // Functional areas: area_filters rows matched against asset attributes.
+  const { results: funcAreas } = await db.prepare(`
+    SELECT af.area_id
+    FROM employee_areas ea
+    JOIN area_filters af ON af.area_id = ea.area_id
+    JOIN areas a ON a.id = ea.area_id AND a.area_type = 'functional'
+    WHERE ea.emp_id = ?
+      AND (
+        (af.filter_type = 'machine_type'  AND af.filter_value = ?)
+        OR (af.filter_type = 'node_type'  AND af.filter_value = ?)
+        OR (af.filter_type = 'criticality' AND af.filter_value = ?)
+      )
+  `).bind(empId, asset.machine_type ?? '', asset.node_type, asset.criticality).all<{ area_id: string }>();
+
+  if (funcAreas.length > 0) return { allowed: true, elevation_id: null };
+
+  // ── Temporary scope elevation ────────────────────────────────────────────
+  const elevation = await db.prepare(`
+    SELECT ese.id, ese.area_id
+    FROM employee_scope_elevations ese
+    LEFT JOIN area_nodes an ON an.area_id = ese.area_id
+    LEFT JOIN assets an_asset ON an_asset.id = an.asset_node_id
+    WHERE ese.emp_id = ?
+      AND ese.valid_from <= ?
+      AND ese.valid_until >= ?
+      AND ese.revoked_at IS NULL
+      AND (
+        ese.area_id IS NULL                                              -- site-wide
+        OR (an.include_descendants = 1 AND ? LIKE (an_asset.path || '%'))
+        OR an.asset_node_id = ?
+      )
+    LIMIT 1
+  `).bind(empId, now, now, asset.path ?? asset.id, assetId).first<{ id: number; area_id: string | null }>();
+
+  if (elevation) return { allowed: true, elevation_id: elevation.id };
+
+  return { allowed: false, elevation_id: null };
 }
 
 // ─── Access log helper ───────────────────────────────────────────────────────
@@ -293,7 +387,7 @@ export default {
     if (method === 'GET' && path === '/api/auth/token') {
       const payload: JWTPayload = {
         sub: 'emp_001', name: 'Dev Admin', role: 'admin',
-        areas: ['all'],
+        trade_ids: [],
         exp: Math.floor(Date.now() / 1000) + 86400,
       };
       const token = await signJWT(payload, env.OPERUM_JWT_SECRET);
@@ -317,12 +411,17 @@ export default {
       const validDev = password === 'admin123' && emp.password_hash?.toString().startsWith('$2b$');
       if (!validDev) return err('Invalid credentials', 401, origin);
 
-      const areas: string[] = JSON.parse((emp.areas as string) || '[]');
+      // Load trade IDs for this employee from employee_trades junction table
+      const { results: tradeRows } = await env.DB.prepare(
+        `SELECT trade_id FROM employee_trades WHERE emp_id = ?`
+      ).bind(emp.id as string).all<{ trade_id: string }>();
+      const trade_ids = tradeRows.map(r => r.trade_id);
+
       const payload: JWTPayload = {
         sub: emp.id as string,
         name: emp.name as string,
         role: emp.role as Role,
-        areas,
+        trade_ids,
         exp: Math.floor(Date.now() / 1000) + 86400,
       };
       const token = await signJWT(payload, env.OPERUM_JWT_SECRET);
@@ -366,7 +465,7 @@ export default {
     if (method === 'GET' && path === '/api/employees') {
       if (!can(actor.role, MANAGE_ROLES)) return err('Forbidden', 403, origin);
       const rows = await db.prepare(
-        `SELECT id, name, email, phone, role, areas, active, created_at FROM employees ORDER BY name`
+        `SELECT id, name, email, phone, role, is_contractor, active, created_at FROM employees ORDER BY name`
       ).all();
       return json({ employees: rows.results });
     }
@@ -375,20 +474,19 @@ export default {
     if (method === 'POST' && path === '/api/employees') {
       if (!can(actor.role, ADMIN_ROLES)) return err('Forbidden', 403, origin);
       const b = await req.json().catch(() => ({})) as Record<string, unknown>;
-      const { id, name, email, phone, role, areas } = b;
+      const { id, name, email, phone, role } = b;
       if (!id || !name || !email || !role) return err('id, name, email, role are required', 400, origin);
 
-      const validRoles: Role[] = ['admin','safety_manager','maintenance_planner','supervisor','artisan','operator','read_only','contractor'];
+      const validRoles: Role[] = ['admin','safety_manager','area_manager','maintenance_planner','supervisor','artisan','operator','read_only','contractor_supervisor','contractor_artisan'];
       if (!validRoles.includes(role as Role)) return err('Invalid role', 400, origin);
 
       await db.prepare(
-        `INSERT INTO employees (id, name, email, phone, role, areas, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
+        `INSERT INTO employees (id, name, email, phone, role, created_by)
+         VALUES (?, ?, ?, ?, ?, ?)`
       ).bind(
         String(id), String(name), String(email).toLowerCase().trim(),
         phone ? String(phone) : null,
         String(role),
-        JSON.stringify(Array.isArray(areas) ? areas : []),
         actor.sub
       ).run();
 
@@ -405,7 +503,7 @@ export default {
       if (method === 'GET') {
         if (!can(actor.role, MANAGE_ROLES) && actor.sub !== empId) return err('Forbidden', 403, origin);
         const emp = await db.prepare(
-          `SELECT id, name, email, phone, role, areas, active, created_at FROM employees WHERE id = ?`
+          `SELECT id, name, email, phone, role, is_contractor, active, created_at FROM employees WHERE id = ?`
         ).bind(empId).first();
         if (!emp) return err('Not found', 404, origin);
         return json({ employee: emp });
@@ -421,7 +519,6 @@ export default {
         if (b.email !== undefined) { fields.push('email = ?');  vals.push(String(b.email).toLowerCase().trim()); }
         if (b.phone !== undefined) { fields.push('phone = ?');  vals.push(b.phone ? String(b.phone) : null); }
         if (b.role  !== undefined) { fields.push('role = ?');   vals.push(String(b.role)); }
-        if (b.areas !== undefined) { fields.push('areas = ?');  vals.push(JSON.stringify(Array.isArray(b.areas) ? b.areas : [])); }
         if (b.active !== undefined) { fields.push('active = ?'); vals.push(b.active ? 1 : 0); }
 
         if (!fields.length) return err('No fields to update', 400, origin);
@@ -1298,6 +1395,187 @@ export default {
       ).run();
 
       await log(db, actor.sub, 'update', `swp:${swpId}`, { status: b.status }, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── POST /api/swps/:id/submit ────────────────────────────────────────────
+    // Artisan submits draft SWP for supervisor review.
+    // Scope: actor must have scope over the SWP's asset.
+    // Transition: draft → pending_review
+    const swpSubmitMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)\/submit$/);
+    if (swpSubmitMatch && method === 'POST') {
+      if (!can(actor.role, SWP_CREATE_ROLES)) return err('Forbidden', 403, origin);
+      const swpId = swpSubmitMatch[1];
+      const now = new Date().toISOString();
+
+      const swp = await db.prepare(
+        `SELECT id, status, asset_id, created_by FROM swps WHERE id = ?`
+      ).bind(swpId).first<{ id: string; status: string; asset_id: string; created_by: string }>();
+      if (!swp) return err('SWP not found', 404, origin);
+      if (swp.status !== 'draft') return err('Only a draft SWP can be submitted for review', 409, origin);
+
+      // Scope check — actor must have scope over this asset
+      const scope = await employeeHasScope(db, actor.sub, actor.role, swp.asset_id, now);
+      if (!scope.allowed) return err('You do not have scope over this asset', 403, origin);
+
+      await db.batch([
+        db.prepare(`
+          UPDATE swps SET status = 'pending_review', submitted_by = ?, updated_at = ? WHERE id = ?
+        `).bind(actor.sub, now, swpId),
+        db.prepare(`
+          INSERT INTO swp_status_history (swp_id, from_status, to_status, acted_by, elevation_id, comment, acted_at)
+          VALUES (?, 'draft', 'pending_review', ?, ?, NULL, ?)
+        `).bind(swpId, actor.sub, scope.elevation_id, now),
+      ]);
+
+      await log(db, actor.sub, 'swp_submit', `swp:${swpId}`, null, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── POST /api/swps/:id/review ─────────────────────────────────────────────
+    // Supervisor passes SWP up to area manager.
+    // Scope: actor must have scope over the SWP's asset + be in SWP_REVIEW_ROLES.
+    // Transition: pending_review → pending_approval
+    const swpReviewMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)\/review$/);
+    if (swpReviewMatch && method === 'POST') {
+      if (!can(actor.role, SWP_REVIEW_ROLES)) return err('Forbidden', 403, origin);
+      const swpId = swpReviewMatch[1];
+      const now = new Date().toISOString();
+
+      const swp = await db.prepare(
+        `SELECT id, status, asset_id FROM swps WHERE id = ?`
+      ).bind(swpId).first<{ id: string; status: string; asset_id: string }>();
+      if (!swp) return err('SWP not found', 404, origin);
+      if (swp.status !== 'pending_review') return err('SWP is not awaiting review', 409, origin);
+
+      const scope = await employeeHasScope(db, actor.sub, actor.role, swp.asset_id, now);
+      if (!scope.allowed) return err('You do not have scope over this asset', 403, origin);
+
+      const b = await req.json().catch(() => ({})) as { comment?: string };
+
+      await db.batch([
+        db.prepare(`
+          UPDATE swps SET status = 'pending_approval', reviewer_emp_id = ?, updated_at = ? WHERE id = ?
+        `).bind(actor.sub, now, swpId),
+        db.prepare(`
+          INSERT INTO swp_status_history (swp_id, from_status, to_status, acted_by, elevation_id, comment, acted_at)
+          VALUES (?, 'pending_review', 'pending_approval', ?, ?, ?, ?)
+        `).bind(swpId, actor.sub, scope.elevation_id, b.comment?.trim() ?? null, now),
+      ]);
+
+      await log(db, actor.sub, 'swp_review', `swp:${swpId}`, null, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── POST /api/swps/:id/advance ────────────────────────────────────────────
+    // Area manager submits SWP to safety manager for approval.
+    // Scope: actor must have scope over asset + role area_manager or above.
+    // Transition: pending_approval → pending_safety
+    const swpAdvanceMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)\/advance$/);
+    if (swpAdvanceMatch && method === 'POST') {
+      if (!can(actor.role, ['admin','safety_manager','area_manager'] as Role[])) return err('Forbidden', 403, origin);
+      const swpId = swpAdvanceMatch[1];
+      const now = new Date().toISOString();
+
+      const swp = await db.prepare(
+        `SELECT id, status, asset_id FROM swps WHERE id = ?`
+      ).bind(swpId).first<{ id: string; status: string; asset_id: string }>();
+      if (!swp) return err('SWP not found', 404, origin);
+      if (swp.status !== 'pending_approval') return err('SWP is not awaiting area manager action', 409, origin);
+
+      const scope = await employeeHasScope(db, actor.sub, actor.role, swp.asset_id, now);
+      if (!scope.allowed) return err('You do not have scope over this asset', 403, origin);
+
+      const b = await req.json().catch(() => ({})) as { comment?: string };
+
+      await db.batch([
+        db.prepare(`
+          UPDATE swps SET status = 'pending_safety', approver_emp_id = ?, updated_at = ? WHERE id = ?
+        `).bind(actor.sub, now, swpId),
+        db.prepare(`
+          INSERT INTO swp_status_history (swp_id, from_status, to_status, acted_by, elevation_id, comment, acted_at)
+          VALUES (?, 'pending_approval', 'pending_safety', ?, ?, ?, ?)
+        `).bind(swpId, actor.sub, scope.elevation_id, b.comment?.trim() ?? null, now),
+      ]);
+
+      await log(db, actor.sub, 'swp_advance', `swp:${swpId}`, null, ip);
+      return json({ ok: true }, 200, origin);
+    }
+
+    // ── POST /api/swps/:id/approve ────────────────────────────────────────────
+    // Safety manager approves or rejects a SWP.
+    // Approve:  pending_safety → approved
+    // Reject:   pending_safety → draft  (comment mandatory; clears chain fields)
+    // Edit approved: approved → draft   (restarts chain; history preserved)
+    const swpApproveMatch = path.match(/^\/api\/swps\/([A-Z0-9-]+)\/approve$/);
+    if (swpApproveMatch && method === 'POST') {
+      if (!can(actor.role, SWP_APPROVE_ROLES)) return err('Forbidden', 403, origin);
+      const swpId = swpApproveMatch[1];
+      const now = new Date().toISOString();
+
+      const swp = await db.prepare(
+        `SELECT id, status FROM swps WHERE id = ?`
+      ).bind(swpId).first<{ id: string; status: string }>();
+      if (!swp) return err('SWP not found', 404, origin);
+
+      const b = await req.json().catch(() => ({})) as { action: 'approve' | 'reject' | 'revert'; comment?: string };
+      if (!b.action) return err('action is required: approve | reject | revert', 400, origin);
+
+      // approve: must be pending_safety
+      if (b.action === 'approve') {
+        if (swp.status !== 'pending_safety') return err('SWP is not awaiting safety approval', 409, origin);
+        await db.batch([
+          db.prepare(`
+            UPDATE swps SET status = 'approved', approved_by = ?, approved_at = ?,
+              rejection_comment = NULL, updated_at = ? WHERE id = ?
+          `).bind(actor.sub, now, now, swpId),
+          db.prepare(`
+            INSERT INTO swp_status_history (swp_id, from_status, to_status, acted_by, elevation_id, comment, acted_at)
+            VALUES (?, 'pending_safety', 'approved', ?, NULL, ?, ?)
+          `).bind(swpId, actor.sub, b.comment?.trim() ?? null, now),
+        ]);
+      }
+
+      // reject: must be pending_safety; comment mandatory; reverts to draft
+      else if (b.action === 'reject') {
+        if (swp.status !== 'pending_safety') return err('SWP is not awaiting safety approval', 409, origin);
+        if (!b.comment?.trim()) return err('Rejection comment is required', 400, origin);
+        await db.batch([
+          db.prepare(`
+            UPDATE swps SET status = 'draft',
+              submitted_by = NULL, reviewer_emp_id = NULL, approver_emp_id = NULL,
+              approved_by = NULL, approved_at = NULL,
+              rejection_comment = ?, updated_at = ? WHERE id = ?
+          `).bind(b.comment.trim(), now, swpId),
+          db.prepare(`
+            INSERT INTO swp_status_history (swp_id, from_status, to_status, acted_by, elevation_id, comment, acted_at)
+            VALUES (?, 'pending_safety', 'draft', ?, NULL, ?, ?)
+          `).bind(swpId, actor.sub, b.comment.trim(), now),
+        ]);
+      }
+
+      // revert: approved → draft; restarts chain; previous history preserved
+      else if (b.action === 'revert') {
+        if (swp.status !== 'approved') return err('Only an approved SWP can be reverted to draft', 409, origin);
+        await db.batch([
+          db.prepare(`
+            UPDATE swps SET status = 'draft',
+              submitted_by = NULL, reviewer_emp_id = NULL, approver_emp_id = NULL,
+              approved_by = NULL, approved_at = NULL,
+              rejection_comment = ?, updated_at = ? WHERE id = ?
+          `).bind(b.comment?.trim() ?? null, now, swpId),
+          db.prepare(`
+            INSERT INTO swp_status_history (swp_id, from_status, to_status, acted_by, elevation_id, comment, acted_at)
+            VALUES (?, 'approved', 'draft', ?, NULL, ?, ?)
+          `).bind(swpId, actor.sub, b.comment?.trim() ?? null, now),
+        ]);
+      }
+
+      else {
+        return err('Invalid action — must be approve | reject | revert', 400, origin);
+      }
+
+      await log(db, actor.sub, `swp_${b.action}`, `swp:${swpId}`, null, ip);
       return json({ ok: true }, 200, origin);
     }
 

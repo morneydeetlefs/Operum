@@ -821,9 +821,12 @@ body::before {
   flex-shrink: 0; font-family: var(--font-mono); font-size: .58rem; letter-spacing: .06em;
   text-transform: uppercase; padding: 2px 7px; border-radius: 20px;
 }
-.swp-status-pill.draft    { background: rgba(122,109,88,.15); color: var(--md-muted); }
-.swp-status-pill.approved { background: rgba(76,175,122,.12); color: var(--md-success); }
-.swp-status-pill.archived { background: rgba(201,76,76,.08);  color: var(--md-danger); }
+.swp-status-pill.draft            { background: rgba(122,109,88,.15); color: var(--md-muted); }
+.swp-status-pill.pending_review   { background: rgba(76,143,201,.12); color: var(--md-info); }
+.swp-status-pill.pending_approval { background: rgba(212,132,42,.15); color: var(--md-gold); }
+.swp-status-pill.pending_safety   { background: rgba(201,148,60,.12); color: var(--md-gold-lt); }
+.swp-status-pill.approved         { background: rgba(76,175,122,.12); color: var(--md-success); }
+.swp-status-pill.archived         { background: rgba(201,76,76,.08);  color: var(--md-danger); }
 
 /* SWP detail / editor sheet */
 .swp-editor-step {
@@ -3407,18 +3410,27 @@ function parseJWT(token) {
 }
 
 function roleBadgeClass(role) {
-  if (role === 'admin') return 'badge-admin';
-  if (role === 'supervisor') return 'badge-supervisor';
-  if (role === 'artisan' || role === 'operator') return 'badge-artisan';
-  if (role === 'safety_manager') return 'badge-safety';
+  if (role === 'admin')                                          return 'badge-admin';
+  if (role === 'safety_manager')                                 return 'badge-safety';
+  if (role === 'area_manager')                                   return 'badge-area-manager';
+  if (role === 'supervisor')                                     return 'badge-supervisor';
+  if (role === 'artisan' || role === 'operator')                 return 'badge-artisan';
+  if (role === 'contractor_supervisor' || role === 'contractor_artisan') return 'badge-contractor';
   return 'badge-other';
 }
 
 function roleLabel(role) {
   return {
-    admin: 'Admin', safety_manager: 'Safety Mgr', maintenance_planner: 'Maint. Planner',
-    supervisor: 'Supervisor', artisan: 'Artisan', operator: 'Operator',
-    read_only: 'Read Only', contractor: 'Contractor',
+    admin:                'Admin',
+    safety_manager:       'Safety Mgr',
+    area_manager:         'Area Manager',
+    maintenance_planner:  'Maint. Planner',
+    supervisor:           'Supervisor',
+    artisan:              'Artisan',
+    operator:             'Operator',
+    read_only:            'Read Only',
+    contractor_supervisor:'Contractor Supervisor',
+    contractor_artisan:   'Contractor Artisan',
   }[role] || role;
 }
 
@@ -3433,8 +3445,14 @@ function incStatusLabel(s) {
     || s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 function swpStatusLabel(s) {
-  return { draft: 'Draft', approved: 'Approved', archived: 'Archived' }[s]
-    || s.charAt(0).toUpperCase() + s.slice(1);
+  return {
+    draft:              'Draft',
+    pending_review:     'Awaiting Review',
+    pending_approval:   'Awaiting Approval',
+    pending_safety:     'Awaiting Safety',
+    approved:           'Approved',
+    archived:           'Archived',
+  }[s] || (s ? s.replace(/_/g,' ').replace(/\w/g,c=>c.toUpperCase()) : '—');
 }
 function shiftLabel(s) {
   return { day: 'Day shift', night: 'Night shift', all_day: 'All-day' }[s]
