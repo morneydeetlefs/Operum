@@ -1,5 +1,5 @@
 # Operum — Session Handoff
-## Safety + Register + Tools Modules · September 2026
+## Org Model + SWP Chain · September 2026
 ### MD Works · Morney Deetlefs · South Africa
 
 ---
@@ -55,13 +55,68 @@ roleLabel(role)         // admin→Admin, safety_manager→Safety Mgr, etc.
 
 ## Stack
 
-- **Frontend:** Vanilla HTML / CSS / JS, single `app.html` (~7725 lines), no build step
-- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3616 lines)
+- **Frontend:** Vanilla HTML / CSS / JS, single `app.html` (~8606 lines), no build step
+- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3897 lines)
 - **Database:** Cloudflare D1 (SQLite), `operum_main`
 
 ---
 
 ## What is built and deployed
+
+### Organisational model — schema_org_v1.sql (deployed · commit 4a7f150)
+
+**Employees — rebuilt clean**
+- `is_contractor`, `password_hash`, `created_by` added; `areas` column dropped
+- Two seed rows preserved: `emp_001` (Site Administrator) + `sas1` (Morney Deetlefs), both `admin`
+- Dev password: `admin123` (bcrypt hash seeded — login handler accepts it)
+
+**New tables:**
+- `trades` — configurable discipline list (Mechanical, Electrical, Instrumentation etc.)
+- `employee_trades` — junction: one employee can carry multiple trades
+- `employee_reports_to` — single parent pointer per employee (supervisor → area manager chain)
+- `areas` — named scopes, `area_type`: `geographic` | `functional`
+- `area_nodes` — geographic area → asset tree node binding (`include_descendants` flag)
+- `area_filters` — functional area → asset attribute binding (`machine_type`, `node_type`, `criticality`)
+- `employee_areas` — permanent scope assignments (many-to-many)
+- `employee_scope_elevations` — temporary scope grants (standby cover); hard expiry via `valid_until`; `area_id NULL` = site-wide; full audit trail
+- `swp_status_history` — immutable audit trail of every SWP status transition; records `elevation_id` when actor operated under temporary scope
+
+**ALTER TABLE (additive):**
+- `assets.path TEXT` — materialised path for fast descendant scope checks (`LIKE '/SITE/PLANT/%'`)
+- `swps`: `submitted_by`, `reviewer_emp_id`, `approver_emp_id`, `rejection_comment`
+
+**Role model (two-axis: role + trade + area scope):**
+```
+admin               — site-wide, no trade filter
+safety_manager      — site-wide, no trade filter, approves SWPs
+area_manager        — trade-scoped, multi-area, advances SWPs to safety
+maintenance_planner — functional planner role
+supervisor          — trade-scoped, single area, reviews SWPs
+artisan             — trade-scoped, single area, creates SWPs
+operator            — raise notifications only
+read_only           — dashboards only
+contractor_supervisor — narrow scope, reviews contractor SWPs
+contractor_artisan    — narrow scope, creates contractor SWPs
+```
+
+**SWP approval chain:**
+```
+draft → [artisan submits] → pending_review
+      → [supervisor reviews] → pending_approval
+      → [area manager advances] → pending_safety
+      → [safety manager approves] → approved
+      → [edit by authorised role] → draft (chain restarts, history preserved)
+      → [safety manager rejects] → draft (comment recorded, chain fields cleared)
+```
+
+**Scope enforcement — `employeeHasScope(db, empId, role, assetId, now)`:**
+- Admin + Safety Manager: always true (site-wide)
+- Geographic: checks `employee_areas` → `area_nodes` → `assets.path LIKE node_path%`
+- Functional: checks `employee_areas` → `area_filters` → asset attribute match
+- Temporary: checks `employee_scope_elevations` within `valid_from`/`valid_until` window
+- Returns `{ allowed: boolean, elevation_id: number | null }` — elevation_id recorded in `swp_status_history`
+
+---
 
 ### Register module
 
@@ -179,6 +234,10 @@ SAFE WORK PROCEDURES
   GET/POST /api/assets/:id/swps
   GET  /api/swps/:id
   PATCH /api/swps/:id
+  POST /api/swps/:id/submit              draft → pending_review (artisan)
+  POST /api/swps/:id/review              pending_review → pending_approval (supervisor)
+  POST /api/swps/:id/advance             pending_approval → pending_safety (area manager)
+  POST /api/swps/:id/approve             approve | reject | revert (safety manager)
   POST /api/swps/:id/steps
   PATCH /api/swps/:id/steps/:stepId
   DELETE /api/swps/:id/steps/:stepId
@@ -237,6 +296,9 @@ TOOLS REGISTER v2
 
 ## Key lessons learnt
 
+- **Wrangler OAuth expiry:** `Authentication error [code: 10000]` on D1 import = silent token expiry. Fix: `npx wrangler logout && npx wrangler login`. Happens even with valid `d1 (write)` scope shown.
+- **D1 DROP TABLE FK constraint:** `PRAGMA foreign_keys = OFF` before `DROP TABLE employees` — other tables reference it. Re-enable after seed inserts with `PRAGMA foreign_keys = ON`.
+- **GitHub remote auth:** If push fails with 403, remote may be using wrong account. Fix: `git remote set-url origin https://morneydeetlefs@github.com/morneydeetlefs/Operum.git`
 - **Toast auto-dismiss:** CSS `@keyframes` animation + `void t.offsetWidth` reflow. Never rely on `setTimeout` alone.
 - **Filter defaults:** Default to empty (all), not a specific status. Reset to All after create actions.
 - **Stale UI:** Every submit must reload the relevant list AND re-render the open detail panel.
@@ -248,23 +310,36 @@ TOOLS REGISTER v2
 
 ## Next session priorities
 
-1. **BBS Observations detail view** — list and form exist; detail sheet not built
+1. **SWP chain UI** — Worker endpoints live, UI not yet built:
+   - Submit button on draft SWP detail (artisan / supervisor role)
+   - Review button on `pending_review` SWP (supervisor, scoped)
+   - Advance button on `pending_approval` SWP (area manager, scoped)
+   - Approve / Reject / Revert actions on `pending_safety` / `approved` (safety manager)
+   - Rejection comment display on draft SWP (visible to drafter)
+   - `swp_status_history` audit trail tab in SWP editor Approvals panel
+   - All actions conditioned on `actor.role` and current SWP status
 
-2. **Contractors / Services module** — schema design before any code:
+2. **Trades + Areas admin UI** — schema deployed, no UI yet:
+   - Trades CRUD (admin only) — simple list, add/edit/deactivate
+   - Areas CRUD — name, type (geographic/functional), bind to asset nodes or filters
+   - Employee trade assignment — multi-select on employee detail
+   - Employee area assignment — permanent + temporary elevation grant/revoke UI
+   - Employee reporting line — set manager on employee detail
+
+3. **BBS Observations detail view** — list and form exist; detail sheet not built
+
+4. **Contractors / Services module** — schema design before any code:
    - Full sub-contractor work order system
    - Individual contractor worker competency records
    - PTW relationship to be designed
 
-3. **SWP Resources — deferred flows** (kit issue + artisan acknowledge):
-   - `POST /api/swps/:id/issue-kit` — storekeeper batch issue sheet (type → pick available instance)
+5. **SWP Resources — deferred flows** (kit issue + artisan acknowledge):
+   - `POST /api/swps/:id/issue-kit` — storekeeper batch issue sheet
    - `POST /api/swps/:id/acknowledge-resources` — artisan checklist on approved SWP
 
-4. **SWP Team composition tab** — minimum safe crew per SWP:
-   - Schema: `swp_team_roles` table (role_label, quantity, contractor flag, sort_order)
-   - UI: Team tab in SWP editor alongside Steps / Resources / Approvals
-   - Deferred until Contractors module exists to reference contractor roles properly
+6. **SWP Team composition tab** — deferred until Contractors module exists
 
-5. **HIRA module** — depends on Chemicals Register (complete); can begin schema design
+7. **HIRA module** — depends on Chemicals Register (complete); can begin schema design
 
 ---
 
@@ -307,4 +382,4 @@ Then say:
 ---
 
 *✦ MD Works · Morney Deetlefs · South Africa*
-*Handoff updated: September 2026 — commit ff800e8*
+*Handoff updated: September 2026 — commit 4a7f150*
