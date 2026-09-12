@@ -1331,11 +1331,18 @@ export default {
 
       const swp = await db.prepare(`
         SELECT s.*, a.label AS asset_label, a.id AS asset_id,
-               e.name AS approved_by_name, c.name AS created_by_name
+               e.name  AS approved_by_name,
+               c.name  AS created_by_name,
+               sb.name AS submitted_by_name,
+               rv.name AS reviewer_name,
+               ap.name AS approver_name
         FROM swps s
-        LEFT JOIN assets a ON a.id = s.asset_id
-        LEFT JOIN employees e ON e.id = s.approved_by
-        LEFT JOIN employees c ON c.id = s.created_by
+        LEFT JOIN assets    a  ON a.id  = s.asset_id
+        LEFT JOIN employees e  ON e.id  = s.approved_by
+        LEFT JOIN employees c  ON c.id  = s.created_by
+        LEFT JOIN employees sb ON sb.id = s.submitted_by
+        LEFT JOIN employees rv ON rv.id = s.reviewer_emp_id
+        LEFT JOIN employees ap ON ap.id = s.approver_emp_id
         WHERE s.id = ?
       `).bind(swpId).first();
       if (!swp) return err('SWP not found', 404, origin);
