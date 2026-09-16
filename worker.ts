@@ -368,6 +368,11 @@ export default {
       ? reqOrigin
       : (env.CORS_ORIGIN || '*');
 
+    // Top-level safety net — any unhandled throw returns a CORS-safe 500
+    // instead of the runtime's bare error response (which has no CORS headers
+    // and causes the browser to report a CORS failure rather than the real error).
+    try {
+
     const url    = new URL(req.url);
     const path   = url.pathname;
     const method = req.method;
@@ -3897,5 +3902,14 @@ export default {
     // ── END CHEMICALS REGISTER ────────────────────────────────────────────────
     // ── END INCIDENT INVESTIGATION ────────────────────────────────────────────
     return err('Not found', 404, origin);
+
+    } catch (e: unknown) {
+      // Unhandled exception — log to console (visible in wrangler tail) and
+      // return a CORS-safe 500 so the browser sees the real status, not a
+      // misleading CORS error.
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error('[worker] unhandled exception:', msg, e instanceof Error ? e.stack : '');
+      return err(`Internal server error: ${msg}`, 500, origin);
+    }
   },
 };
