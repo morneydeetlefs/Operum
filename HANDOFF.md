@@ -55,8 +55,8 @@ roleLabel(role)         // admin→Admin, safety_manager→Safety Mgr, etc.
 
 ## Stack
 
-- **Frontend:** Vanilla HTML / CSS / JS, single `app.html` (~8606 lines), no build step
-- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3897 lines)
+- **Frontend:** Vanilla HTML / CSS / JS, single `app.html` (~8700 lines), no build step
+- **Backend:** Cloudflare Workers (TypeScript), single `worker.ts` (~3910 lines)
 - **Database:** Cloudflare D1 (SQLite), `operum_main`
 
 ---
@@ -340,6 +340,30 @@ TOOLS REGISTER v2
 6. **SWP Team composition tab** — deferred until Contractors module exists
 
 7. **HIRA module** — depends on Chemicals Register (complete); can begin schema design
+
+---
+
+## Demo seed — Sasol Ash Plant
+
+Seed files in repo (`seed_01_*.sql` through `seed_06_*.sql`). Run in order via `--file=`. Wipe sequence requires clearing child tables via `--command` first (FK constraints enforced in --command mode). See `seed_sasol.sql` for the full combined file (use chunks for reliability).
+
+**Scenario:** Sasol Secunda, Ash Plant. Two geographic areas (Conveyors Bay, Pump Station), one functional area (Mechanical). Eight employees across all roles. All passwords: `admin123`. `emp_001` and `sas1` preserved as admin accounts.
+
+| ID | Name | Role |
+|---|---|---|
+| emp_001 | Site Administrator | admin |
+| sas1 | Morney Deetlefs | admin |
+| emp_sm1 | Johan Venter | safety_manager |
+| emp_am1 | Piet Oberholzer | area_manager |
+| emp_sv1 | Thabo Nkosi | supervisor (Conveyors Bay) |
+| emp_sv2 | Sizwe Dlamini | supervisor (Pump Station) |
+| emp_ar1 | Riaan Botha | artisan (Conveyors Bay) |
+| emp_ar2 | Lungelo Mthembu | artisan (Pump Station) |
+| emp_op1 | Maria Sithole | operator |
+
+**SWPs:** SWP-2026-001 (CV-101 Gearbox Oil Change) = `approved`, full chain history -- use to test Revert/Reject. SWP-2026-002 (PMP-001 Mechanical Seal) = `draft` -- use to walk chain from scratch.
+
+**GPS coords:** All assets have Secunda coords (-26.56xx, 29.18xx) -- ready for future map view.
 
 ---
 
